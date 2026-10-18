@@ -5,8 +5,9 @@ import numpy as np
 from monty.tempfile import ScratchDir
 
 from simsopt import load
-from simsopt.field import CircularCoil, ToroidalField, VirtualCasingField, VmecPlasmaField, VmecVirtualCasingField
-from simsopt.geo import SurfaceRZFourier
+from simsopt.field import (BiotSavart, CircularCoil, Coil, Current, ToroidalField, VirtualCasingField, VmecPlasmaField,
+                           VmecVirtualCasingField, coils_via_symmetries)
+from simsopt.geo import CurveRZFourier, CurveXYZFourier, SurfaceRZFourier
 from simsopt.mhd import Vmec
 
 try:
@@ -18,6 +19,7 @@ except ImportError:
 from . import TEST_DIR
 
 LBD_QH = os.path.join(TEST_DIR, "wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc")
+LBD_COILS = os.path.join(TEST_DIR, "coils_QH_nfp4_aspect6p5_beta0p05_Wiedman2024.json")
 
 
 def rotating_ellipse(n):
@@ -38,6 +40,30 @@ def inner_field():
 
 def outer_field():
     return ToroidalField(R0=1.0, B0=1.0) + CircularCoil(r0=3.0, center=[0, 0, 0], I=-1e6, normal=[0, 0, 1])
+
+
+def lbd_axis_current(nquad=1024):
+    """BiotSavart field of the plasma current of LBD_QH carried by its magnetic axis."""
+    w = Vmec(LBD_QH).wout
+    m0 = np.flatnonzero(w.xm == 0)
+    n = np.round(w.xn[m0] / w.nfp).astype(int)
+    rc, zs = np.zeros(n.max() + 1), np.zeros(n.max())
+    rc[n] = w.rmnc[m0, 0]
+    zs[n[n > 0] - 1] = -w.zmns[m0[n > 0], 0]
+    curve = CurveRZFourier(np.linspace(0, 1, nquad, endpoint=False), n.max(), int(w.nfp), True)
+    curve.x = np.concatenate([rc, zs])
+    return BiotSavart([Coil(curve, Current(float(w.ctor)))])
+
+
+def lbd_coils(nquad=1280):
+    """BiotSavart field of the coils of LBD_COILS with nquad quadrature points per coil (the file has 80)."""
+    base = load(LBD_COILS).coils[:5]
+    curves = []
+    for c in base:
+        curve = CurveXYZFourier(nquad, c.curve.order)
+        curve.x = c.curve.x
+        curves.append(curve)
+    return BiotSavart(coils_via_symmetries(curves, [c.current for c in base], nfp=4, stellsym=True))
 
 
 def field_at(field, x):
@@ -92,6 +118,28 @@ class VirtualCasingFieldTests(unittest.TestCase):
         n = vc.trgt_surf.unitnormal()
         np.testing.assert_allclose(vc.Bnormal_due_int + vc.Bnormal_due_ext, np.sum((B_int + B_ext) * n, axis=-1),
                                    atol=1e-5 * np.abs(B_ext).max())
+
+    def test_shaped_boundary_manufactured(self):
+        """
+        On the LBD_QH boundary, the total field of a current along the magnetic axis and of the coils is split
+        into the two: the axis current's field outside and the coils' field inside, down to 1 um from the boundary.
+        """
+        inner, outer = lbd_axis_current(), lbd_coils()
+        nphi, ntheta = 32, 128
+        surf = SurfaceRZFourier.from_wout(LBD_QH, range="half period", nphi=nphi, ntheta=ntheta)
+        x = surf.gamma().reshape(-1, 3)
+        B = (field_at(inner, x) + field_at(outer, x)).reshape(nphi, ntheta, 3)
+        vc_int = VirtualCasingField(surf, B, digits=6, currents_inside=True)
+        vc_ext = VirtualCasingField(surf, B, digits=6, currents_inside=False)
+        x0, nhat = boundary_points(surf)
+        scale = np.max(np.linalg.norm(field_at(outer, x0), axis=1))
+        for t in (1e-6, 1e-3, 0.03, 0.3):
+            x = x0 + t * nhat
+            err = np.max(np.linalg.norm(field_at(vc_int, x) - field_at(inner, x), axis=1)) / scale
+            self.assertLess(err, 1e-6, f"outside, t = {t}")
+            x = x0 - t * nhat
+            err = np.max(np.linalg.norm(field_at(vc_ext, x) - field_at(outer, x), axis=1)) / scale
+            self.assertLess(err, 1e-6, f"inside, t = {t}")
 
     def test_update_and_flat_input(self):
         vc = self.make()
