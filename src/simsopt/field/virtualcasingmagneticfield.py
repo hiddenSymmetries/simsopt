@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['VirtualCasingField', 'VmecVirtualCasingField']
+__all__ = ['VirtualCasingField', 'VmecVirtualCasingField', 'VmecPlasmaField']
 
 
 def _virtual_casing():
@@ -273,3 +273,57 @@ class VmecVirtualCasingField(VirtualCasingField):
         Bx, By, Bz = B_cartesian(vmec, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
         return np.concatenate([Bx.ravel(), By.ravel(), Bz.ravel()])
 
+
+class VmecPlasmaField(VmecVirtualCasingField):
+    r"""
+    Field of the plasma currents of a VMEC equilibrium, inside and outside the plasma.
+
+    Outside the boundary this is :class:`VmecVirtualCasingField`. Inside it is
+    :math:`\mathbf{B}_\mathrm{VMEC} - \mathbf{B}_\mathrm{ext}`, with :math:`\mathbf{B}_\mathrm{VMEC}` from
+    :class:`~simsopt.field.VmecField` and :math:`\mathbf{B}_\mathrm{ext}`, the field of the external
+    currents, from the same virtual casing calculation. The two join continuously on the boundary.
+    Added to a coil field this gives the total field of the coils and the plasma currents, continuous
+    across the boundary; inside, it differs from :math:`\mathbf{B}_\mathrm{VMEC}` by
+    :math:`\mathbf{B}_\mathrm{coil} - \mathbf{B}_\mathrm{ext}`.
+
+    Args:
+        vmec: as for :class:`VmecVirtualCasingField`.
+        src_nphi: as for :class:`VmecVirtualCasingField`.
+        src_ntheta: as for :class:`VmecVirtualCasingField`.
+        trgt_nphi: as for :class:`VmecVirtualCasingField`.
+        trgt_ntheta: as for :class:`VmecVirtualCasingField`.
+        digits: as for :class:`VmecVirtualCasingField`.
+    """
+
+    def __init__(self, vmec: 'Vmec', src_nphi: int = None, src_ntheta: int = None, trgt_nphi: int = None,
+                 trgt_ntheta: int = None, digits: int = 7):
+        from .vmecfield import VmecField
+
+        super().__init__(vmec, src_nphi, src_ntheta, trgt_nphi, trgt_ntheta, digits)
+        self._vmec_field = VmecField(self.vmec)
+
+    @property
+    def vmec_field(self):
+        """The :class:`~simsopt.field.VmecField` used inside the plasma."""
+        return self._vmec_field
+
+    def _B_impl(self, B):
+        B1d = self._setup()
+        x = self.get_points_cart_ref()
+        vf = self._vmec_field
+        s, theta, phi, inside = vf.vmec_coordinates(x)
+        outside = ~inside
+        if outside.any():
+            B[outside] = self._offsurf(self._vcasing.compute_internal_B_offsurf, B1d, x[outside])
+        if inside.any():
+            si, xi, ti, pi = s[inside], x[inside], theta[inside], phi[inside]
+            # the off-surface quadrature needs a nonzero distance from the boundary: points within
+            # VmecField.tol of it are moved to that depth along the normal
+            xe = xi.copy()
+            edge = si > 1 - 1e-6
+            if edge.any():
+                xb, n = vf._outward_normal(ti[edge], pi[edge])
+                depth = np.sum((xb - xi[edge]) * n, axis=1)
+                xe[edge] -= np.maximum(vf.tol - depth, 0.0)[:, None] * n
+            B[inside] = (vf._field(np.sqrt(si), ti, pi)
+                         - self._offsurf(self._vcasing.compute_external_B_offsurf, B1d, xe))

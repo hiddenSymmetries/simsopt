@@ -5,7 +5,7 @@ import numpy as np
 from monty.tempfile import ScratchDir
 
 from simsopt import load
-from simsopt.field import CircularCoil, ToroidalField, VirtualCasingField, VmecVirtualCasingField
+from simsopt.field import CircularCoil, ToroidalField, VirtualCasingField, VmecPlasmaField, VmecVirtualCasingField
 from simsopt.geo import SurfaceRZFourier
 from simsopt.mhd import Vmec
 
@@ -138,6 +138,32 @@ class VmecVirtualCasingFieldTests(unittest.TestCase):
         B = field_at(vc, x0 + 1e-6 * n)
         B0 = vc.onsurf_field_due_int.reshape(-1, 3)
         self.assertLess(np.max(np.linalg.norm(B - B0, axis=1)) / np.max(np.linalg.norm(B0, axis=1)), 1e-3)
+
+    def test_plasma_field_inside_and_outside(self):
+        """VmecPlasmaField: virtual casing outside, B_VMEC - B_ext inside, continuous on the boundary."""
+        pf = VmecPlasmaField(LBD_QH, src_nphi=64, src_ntheta=64, trgt_nphi=8, trgt_ntheta=8, digits=6)
+        x0 = pf.trgt_surf.gamma().reshape(-1, 3)
+        n = np.sign(pf.trgt_surf.volume()) * pf.trgt_surf.unitnormal().reshape(-1, 3)
+        B = {t: field_at(pf, x0 + t * n) for t in (0.05, 1e-9, 0.0, -1e-9, -0.05)}
+        scale = np.max(np.linalg.norm(B[1e-9], axis=1))
+
+        outside = VmecVirtualCasingField(LBD_QH, src_nphi=64, src_ntheta=64, trgt_nphi=8, trgt_ntheta=8, digits=6)
+        np.testing.assert_allclose(B[0.05], field_at(outside, x0 + 0.05 * n), rtol=0, atol=1e-12 * scale)
+        ext = VirtualCasingField(pf.surf, pf.total_B_in_surf, trgt_nphi=8, trgt_ntheta=8, digits=6,
+                                 currents_inside=False)
+        xi = x0 - 0.05 * n
+        np.testing.assert_allclose(B[-0.05] + field_at(ext, xi), field_at(pf.vmec_field, xi), rtol=0,
+                                   atol=1e-12 * np.abs(field_at(pf.vmec_field, xi)).max())
+        for a, b in ((1e-9, -1e-9), (0.0, 1e-9), (0.0, -1e-9)):
+            self.assertLess(np.max(np.linalg.norm(B[a] - B[b], axis=1)) / scale, 1e-6)
+
+        # near the magnetic axis
+        rng = np.random.default_rng(0)
+        npts = 2000
+        xc = pf.vmec_field._geometry(rng.uniform(0.02, 0.2, npts), rng.uniform(0, 2 * np.pi, npts),
+                                     rng.uniform(0, 2 * np.pi, npts))[0]
+        Bv = field_at(pf.vmec_field, xc)
+        np.testing.assert_allclose(field_at(pf, xc) + field_at(ext, xc), Bv, rtol=0, atol=1e-12 * np.abs(Bv).max())
 
     def test_default_source_grid(self):
         """The default grid resolves n x B on the boundary to 10^-(digits+2); explicit sizes take precedence."""
