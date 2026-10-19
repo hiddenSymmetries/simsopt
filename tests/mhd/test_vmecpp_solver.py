@@ -21,11 +21,8 @@ from simsopt.mhd.vmec import (
 )
 from simsopt.mhd.vmec_solver import load_wout_file
 
-try:
-    import vmecpp
-    from simsopt.mhd.vmecpp_solver import VmecppSolver
-except ImportError:  # vmecpp is an optional dependency
-    vmecpp = None
+import vmecpp
+from simsopt.mhd.vmecpp_solver import VmecppSolver
 
 try:
     import booz_xform
@@ -54,7 +51,6 @@ BOUNDARY_FIXTURES = [
 ]
 
 
-@unittest.skipIf(vmecpp is None, "vmecpp is not installed")
 class VmecppSolverTests(unittest.TestCase):
     def setUp(self):
         scratch = ScratchDir(".")
