@@ -30,9 +30,7 @@ vmec = Vmec(filename, ntheta=100, nphi=100)
 if in_github_actions:
     vmec.indata.mpol = 6
     vmec.indata.ntor = 6
-    vmec.indata.ns_array = np.zeros_like(vmec.indata.ns_array)
-    vmec.indata.ns_array[0] = 9
-    vmec.indata.ns_array[0] = 49
+    vmec.indata.ns_array = np.array([49])
     maxres = 4
     maxfun = 1
 else:
