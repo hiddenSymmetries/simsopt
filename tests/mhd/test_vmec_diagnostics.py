@@ -24,7 +24,7 @@ try:
 except ImportError:
     MPI = None
 
-from simsopt.mhd.vmec import Vmec
+from . import Vmec2000 as Vmec  # these tests are written for VMEC2000
 
 from . import TEST_DIR
 
