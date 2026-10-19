@@ -12,11 +12,7 @@ try:
 except ImportError:
     vmec_mod = None
 
-try:
-    from simsopt.mhd.vmecpp_solver import VmecppSolver
-except ImportError:
-    VmecppSolver = None
-
+from simsopt.mhd.vmecpp_solver import VmecppSolver
 from simsopt.mhd.profiles import ProfilePolynomial
 from simsopt.mhd.vmec import Vmec
 
@@ -46,8 +42,7 @@ def tag(value):
     return (value.decode() if isinstance(value, bytes) else value).strip().lower()
 
 
-@unittest.skipIf(vmec_mod is None or VmecppSolver is None,
-                 "both the vmec python extension and vmecpp are needed")
+@unittest.skipIf(vmec_mod is None, "the vmec python extension is needed")
 class VmecBackendConversionTests(unittest.TestCase):
     def test_input_conversion(self):
         """ Every INDATA fixture reads into the same Vmec state on both backends. """
@@ -113,8 +108,7 @@ class VmecBackendConversionTests(unittest.TestCase):
                     np.testing.assert_array_equal(a, b)
 
 
-@unittest.skipIf(vmec_mod is None or VmecppSolver is None,
-                 "both the vmec python extension and vmecpp are needed")
+@unittest.skipIf(vmec_mod is None, "the vmec python extension is needed")
 class VmecBackendResultTests(unittest.TestCase):
     def outputs(self, v):
         return {name: getattr(v, name)() for name in RTOL}
