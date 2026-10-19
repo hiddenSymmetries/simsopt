@@ -23,7 +23,7 @@ except ImportError:
 from simsopt._core.optimizable import Optimizable
 if MPI is not None:
     from simsopt.mhd.boozer import Boozer, Quasisymmetry  # , booz_xform_found
-    from simsopt.mhd.vmec import Vmec  # , vmec_found
+    from . import Vmec2000 as Vmec  # these tests are written for VMEC2000
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
