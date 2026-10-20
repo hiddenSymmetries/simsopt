@@ -11,7 +11,7 @@ except ImportError:
     vmec_mod = None
 
 from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline
-from simsopt.mhd.vmec import Vmec
+from . import Vmec2000 as Vmec  # these tests are written for VMEC2000
 from simsopt.mhd.vmec_solver import Vmec2000Solver, fit_profile, profile_curtor
 
 from . import TEST_DIR

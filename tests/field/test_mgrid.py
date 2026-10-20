@@ -14,6 +14,7 @@ except ImportError:
 from simsopt.configs import get_data
 from simsopt.field import MGrid
 from simsopt.mhd import Vmec
+from simsopt.mhd.vmec_solver import Vmec2000Solver
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 test_file = TEST_DIR / 'mgrid.pnas-qa-test-lowres-standard.nc'
@@ -87,7 +88,7 @@ class VmecTests(unittest.TestCase):
         input_file = str(TEST_DIR / "input.W7-X_standard_configuration")
 
         base_curves, base_currents, magnetic_axis, nfp, bs  = get_data("w7x")
-        eq = Vmec(input_file)
+        eq = Vmec(input_file, solver=Vmec2000Solver())
         nphi = 24
         with ScratchDir("."):
             filename = "mgrid.bfield.nc"
