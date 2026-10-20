@@ -37,6 +37,7 @@ class Testing(unittest.TestCase):
         assert mgrid.br[0, 0, 0] == -1.0633399551863771  # -0.9946816978184079
 
         mgrid = MGrid.from_file(test_file2)
+        assert mgrid.nfp == 3
         assert mgrid.rmin == 1.0
         assert mgrid.bvec.shape == (10, 12, 4, 3)
         assert mgrid.bz[1, 1, 1] == -1.012339153040808
