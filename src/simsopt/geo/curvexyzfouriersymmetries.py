@@ -137,7 +137,7 @@ class CurveXYZFourierSymmetries(JaxCurve):
         return (self.order+1) + self.order + self.order if self.stellsym else 3*(2*self.order+1)
 
     def get_dofs(self):
-        return self.coefficients
+        return self.coefficients.copy()
 
     def set_dofs_impl(self, dofs):
         self.coefficients[:] = dofs[:]

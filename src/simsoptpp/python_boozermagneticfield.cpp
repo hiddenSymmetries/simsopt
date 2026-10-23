@@ -13,6 +13,7 @@ namespace py = pybind11;
 #include "boozermagneticfield_interpolated.h"
 #include "pyboozermagneticfield.h"
 #include "regular_grid_interpolant_3d.h"
+#include "python_deprecation.h"
 typedef InterpolatedBoozerField<xt::pytensor> PyInterpolatedBoozerField;
 typedef BoozerMagneticField<xt::pytensor> PyBoozerMagneticField;
 
@@ -53,45 +54,47 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
      .def("dIds", py::overload_cast<>(&T::dIds), "Returns a `(npoints, 1)` array containing the derivative of the magnetic field poloidal covariant component wrt s in Boozer coordinates.")
      .def("diotads", py::overload_cast<>(&T::diotads), "Returns a `(npoints, 1)` array containing the derivative of the rotational transform wrt s in Boozer coordinates.")
 
-     .def("dKdtheta_ref", py::overload_cast<>(&T::dKdtheta_ref), "Same as `dKdtheta`, but returns a reference to the array (this array should be read only).")
-     .def("dKdzeta_ref", py::overload_cast<>(&T::dKdzeta_ref), "Same as `dKdzeta`, but returns a reference to the array (this array should be read only).")
-     .def("K_derivs_ref", py::overload_cast<>(&T::K_derivs_ref), "Same as `K_derivs`, but returns a reference to the array (this array should be read only).")
-     .def("K_ref", py::overload_cast<>(&T::K_ref), "Same as `K`, but returns a reference to the array (this array should be read only).")
-     .def("nu_ref", py::overload_cast<>(&T::nu_ref), "Same as `nu`, but returns a reference to the array (this array should be read only).")
-     .def("dnudtheta_ref", py::overload_cast<>(&T::dnudtheta_ref), "Same as `dnudtheta`, but returns a reference to the array (this array should be read only).")
-     .def("dnudzeta_ref", py::overload_cast<>(&T::dnudzeta_ref), "Same as `dnudzeta`, but returns a reference to the array (this array should be read only).")
-     .def("dnuds_ref", py::overload_cast<>(&T::dnuds_ref), "Same as `dnuds`, but returns a reference to the array (this array should be read only).")
-     .def("nu_derivs_ref", py::overload_cast<>(&T::nu_derivs_ref), "Same as `nu_derivs`, but returns a reference to the array (this array should be read only).")
-     .def("R_ref", py::overload_cast<>(&T::R_ref), "Same as `R`, but returns a reference to the array (this array should be read only).")
-     .def("Z_ref", py::overload_cast<>(&T::Z_ref), "Same as `Z`, but returns a reference to the array (this array should be read only).")
-     .def("dRdtheta_ref", py::overload_cast<>(&T::dRdtheta_ref), "Same as `dRdtheta`, but returns a reference to the array (this array should be read only).")
-     .def("dRdzeta_ref", py::overload_cast<>(&T::dRdzeta_ref), "Same as `dRdzeta`, but returns a reference to the array (this array should be read only).")
-     .def("dRds_ref", py::overload_cast<>(&T::dRds_ref), "Same as `dRds`, but returns a reference to the array (this array should be read only).")
-     .def("R_derivs_ref", py::overload_cast<>(&T::R_derivs_ref), "Same as `R_derivs`, but returns a reference to the array (this array should be read only).")
-     .def("dZdtheta_ref", py::overload_cast<>(&T::dZdtheta_ref), "Same as `dZdtheta`, but returns a reference to the array (this array should be read only).")
-     .def("dZdzeta_ref", py::overload_cast<>(&T::dZdzeta_ref), "Same as `dZdzeta`, but returns a reference to the array (this array should be read only).")
-     .def("dZds_ref", py::overload_cast<>(&T::dZds_ref), "Same as `dZds`, but returns a reference to the array (this array should be read only).")
-     .def("Z_derivs_ref", py::overload_cast<>(&T::Z_derivs_ref), "Same as `Z_derivs`, but returns a reference to the array (this array should be read only).")
-     .def("modB_ref", py::overload_cast<>(&T::modB_ref), "Same as `modB`, but returns a reference to the array (this array should be read only).")
-     .def("dmodBdtheta_ref", py::overload_cast<>(&T::dmodBdtheta_ref), "Same as `dmodBdtheta`, but returns a reference to the array (this array should be read only).")
-     .def("dmodBdzeta_ref", py::overload_cast<>(&T::dmodBdzeta_ref), "Same as `dmodBdzeta`, but returns a reference to the array (this array should be read only).")
-     .def("dmodBds_ref", py::overload_cast<>(&T::dmodBds_ref), "Same as `dmodBds`, but returns a reference to the array (this array should be read only).")
-     .def("modB_derivs_ref", py::overload_cast<>(&T::modB_derivs_ref), "Same as `modB_derivs`, but returns a reference to the array (this array should be read only).")
-     .def("d2modBdtheta2_ref", py::overload_cast<>(&T::d2modBdtheta2_ref), "Same as `d2modBdtheta2`, but returns a reference to the array (this array should be read only).")
-     .def("d2modBdzeta2_ref", py::overload_cast<>(&T::d2modBdzeta2_ref), "Same as `d2modBdzeta2`, but returns a reference to the array (this array should be read only).")
-     .def("d2modBdthetadzeta_ref", py::overload_cast<>(&T::d2modBdthetadzeta_ref), "Same as `d2modBdthetadzeta`, but returns a reference to the array (this array should be read only).")
-     .def("G_ref", py::overload_cast<>(&T::G_ref), "Same as `G`, but returns a reference to the array (this array should be read only).")
-     .def("I_ref", py::overload_cast<>(&T::I_ref), "Same as `I`, but returns a reference to the array (this array should be read only).")
-     .def("psip_ref", py::overload_cast<>(&T::psip_ref), "Same as `psip`, but returns a reference to the array (this array should be read only).")
-     .def("iota_ref", py::overload_cast<>(&T::iota_ref), "Same as `iota`, but returns a reference to the array (this array should be read only).")
-     .def("dGds_ref", py::overload_cast<>(&T::dGds_ref), "Same as `dGds`, but returns a reference to the array (this array should be read only).")
-     .def("dIds_ref", py::overload_cast<>(&T::dIds_ref), "Same as `dIds`, but returns a reference to the array (this array should be read only).")
-     .def("diotads_ref", py::overload_cast<>(&T::diotads_ref), "Same as `diotads`, but returns a reference to the array (this array should be read only).")
-
      .def("invalidate_cache", &T::invalidate_cache, "Clear the cache. Called automatically after each call to `set_points[...]`.")
      .def("get_points", &T::get_points, "Get the point where the field should be evaluated in Boozer coordinates.")
-     .def("get_points_ref", &T::get_points_ref, "As `get_points`, but returns a reference to the array (this array should be read only).")
+     .def("get_points_ref", &T::get_points_ref, "As `get_points`, but returns a reference to the array (this array should be read only). The array is overwritten in place by later calls to `set_points` with the same number of points; copy it before holding on to it.")
      .def("set_points", &T::set_points, "");
+
+    // Private cache accessors, each with a deprecated public alias kept for backward compatibility;
+    // in-tree code must use the private names.
+    def_cache_ref(c, "dKdtheta", py::overload_cast<>(&T::dKdtheta_ref));
+    def_cache_ref(c, "dKdzeta", py::overload_cast<>(&T::dKdzeta_ref));
+    def_cache_ref(c, "K_derivs", py::overload_cast<>(&T::K_derivs_ref));
+    def_cache_ref(c, "K", py::overload_cast<>(&T::K_ref));
+    def_cache_ref(c, "nu", py::overload_cast<>(&T::nu_ref));
+    def_cache_ref(c, "dnudtheta", py::overload_cast<>(&T::dnudtheta_ref));
+    def_cache_ref(c, "dnudzeta", py::overload_cast<>(&T::dnudzeta_ref));
+    def_cache_ref(c, "dnuds", py::overload_cast<>(&T::dnuds_ref));
+    def_cache_ref(c, "nu_derivs", py::overload_cast<>(&T::nu_derivs_ref));
+    def_cache_ref(c, "R", py::overload_cast<>(&T::R_ref));
+    def_cache_ref(c, "Z", py::overload_cast<>(&T::Z_ref));
+    def_cache_ref(c, "dRdtheta", py::overload_cast<>(&T::dRdtheta_ref));
+    def_cache_ref(c, "dRdzeta", py::overload_cast<>(&T::dRdzeta_ref));
+    def_cache_ref(c, "dRds", py::overload_cast<>(&T::dRds_ref));
+    def_cache_ref(c, "R_derivs", py::overload_cast<>(&T::R_derivs_ref));
+    def_cache_ref(c, "dZdtheta", py::overload_cast<>(&T::dZdtheta_ref));
+    def_cache_ref(c, "dZdzeta", py::overload_cast<>(&T::dZdzeta_ref));
+    def_cache_ref(c, "dZds", py::overload_cast<>(&T::dZds_ref));
+    def_cache_ref(c, "Z_derivs", py::overload_cast<>(&T::Z_derivs_ref));
+    def_cache_ref(c, "modB", py::overload_cast<>(&T::modB_ref));
+    def_cache_ref(c, "dmodBdtheta", py::overload_cast<>(&T::dmodBdtheta_ref));
+    def_cache_ref(c, "dmodBdzeta", py::overload_cast<>(&T::dmodBdzeta_ref));
+    def_cache_ref(c, "dmodBds", py::overload_cast<>(&T::dmodBds_ref));
+    def_cache_ref(c, "modB_derivs", py::overload_cast<>(&T::modB_derivs_ref));
+    def_cache_ref(c, "d2modBdtheta2", py::overload_cast<>(&T::d2modBdtheta2_ref));
+    def_cache_ref(c, "d2modBdzeta2", py::overload_cast<>(&T::d2modBdzeta2_ref));
+    def_cache_ref(c, "d2modBdthetadzeta", py::overload_cast<>(&T::d2modBdthetadzeta_ref));
+    def_cache_ref(c, "G", py::overload_cast<>(&T::G_ref));
+    def_cache_ref(c, "I", py::overload_cast<>(&T::I_ref));
+    def_cache_ref(c, "psip", py::overload_cast<>(&T::psip_ref));
+    def_cache_ref(c, "iota", py::overload_cast<>(&T::iota_ref));
+    def_cache_ref(c, "dGds", py::overload_cast<>(&T::dGds_ref));
+    def_cache_ref(c, "dIds", py::overload_cast<>(&T::dIds_ref));
+    def_cache_ref(c, "diotads", py::overload_cast<>(&T::diotads_ref));
 }
 
 void init_boozermagneticfields(py::module_ &m){

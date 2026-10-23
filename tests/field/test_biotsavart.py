@@ -6,6 +6,21 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Coil, Current, ScaledCurrent
 
+# Number of field evaluation points. The value is arbitrary, but should be at
+# least 2 and differ from the other array dimensions (3 spatial components,
+# 200 curve quadrature points) so that broadcasting or axis mix-ups fail.
+NPOINTS = 17
+
+# Coil current for the tests of derivatives with respect to the coil currents,
+# which do not depend on it. Zero rather than 1, because a current of 1 would
+# hide an accessor that returned the current-scaled total instead of the
+# unit-current derivative.
+NEUTRAL_CURRENT = 0.0
+
+# Relative tolerance between two evaluations of the same Biot-Savart kernel at
+# the same points, which agree to rounding.
+SAME_KERNEL_RTOL = 1e-13
+
 
 def get_curve(num_quadrature_points=200, perturb=False):
     coil = CurveXYZFourier(num_quadrature_points, 3)
@@ -18,6 +33,26 @@ def get_curve(num_quadrature_points=200, perturb=False):
         d = coil.get_dofs()
         coil.set_dofs(d + np.random.uniform(size=d.shape))
     return coil
+
+
+def random_points_away_from_coils(rng, curves):
+    """
+    Returns ``NPOINTS`` random field evaluation points in the cube
+    ``[-0.3, 0.3]^3``, away from the coils.
+
+    The ``get_curve()`` coil is a circle of radius 0.5 centred at ``(0, 1, 0)``
+    in the ``x = 0`` plane. It spans y from 0.5 to 1.5, so the cube lies
+    outside it, below it in y, and every point is at least 0.2 from the wire.
+    Perturbed coils can come closer, so the distance from the points to the
+    quadrature points of each curve in ``curves`` is checked against that 0.2
+    clearance, which keeps the points away from the near-singular field close
+    to a wire.
+    """
+    points = rng.uniform(-0.3, 0.3, size=(NPOINTS, 3))
+    for curve in curves:
+        distance = np.linalg.norm(points[:, None, :] - curve.gamma()[None, :, :], axis=-1).min()
+        assert distance >= 0.2, f"an evaluation point is {distance:.3g} from a coil"
+    return points
 
 
 class Testing(unittest.TestCase):
@@ -301,6 +336,123 @@ class Testing(unittest.TestCase):
         assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
         print(f"H norm is {np.linalg.norm(dH[0]-dH_approx)}")
         assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
+
+    def test_coil_current_derivatives_are_not_updated_by_later_evaluations(self):
+        """
+        Arrays returned by the public coil-current derivative methods keep
+        their values after the field is evaluated at new points.
+        """
+        curve = get_curve()
+        bs = BiotSavart([Coil(curve, Current(NEUTRAL_CURRENT))])
+        rng = np.random.default_rng(0)
+        points0 = random_points_away_from_coils(rng, [curve])
+        points1 = random_points_away_from_coils(rng, [curve])
+        methods = [bs.dB_by_dcoilcurrents, bs.d2B_by_dXdcoilcurrents, bs.d3B_by_dXdXdcoilcurrents,
+                   bs.dA_by_dcoilcurrents, bs.d2A_by_dXdcoilcurrents, bs.d3A_by_dXdXdcoilcurrents]
+
+        bs.set_points(points0)
+        held = [method()[0] for method in methods]
+        expected = [h.copy() for h in held]
+        bs.set_points(points1)
+        new = [method()[0] for method in methods]
+
+        for method, h, e, n in zip(methods, held, expected, new):
+            assert not np.allclose(n, e), (
+                f"{method.__name__}: the second point set must change the values, "
+                "otherwise a live view would go undetected")
+            np.testing.assert_array_equal(h, e, err_msg=f"{method.__name__} result changed after set_points")
+
+    def subtest_vector_potential_coil_current_derivatives(self, evaluate_A_elsewhere_first):
+        """
+        Compares the vector potential coil-current derivatives of a two-coil
+        field with the vector potential of each coil carrying unit current.
+        If ``evaluate_A_elsewhere_first``, the field first evaluates ``A``
+        and its derivatives at other points, so the per-coil caches hold
+        values for those points when the evaluation points change.
+        """
+        rng = np.random.default_rng(1)
+        curves = [get_curve(), get_curve()]
+        # The perturbation only makes the two coils distinct, so that a mix-up
+        # between their derivatives fails. It can also bring the perturbed coil
+        # within 0.2 of a sampled point, which random_points_away_from_coils
+        # rejects, so the seed must be one for which the points stay clear.
+        # Seed 1 does; many others fail that assertion.
+        curves[1].x = curves[1].x + 0.1 * rng.standard_normal(curves[1].x.shape)
+        bs = BiotSavart([Coil(curves[0], Current(NEUTRAL_CURRENT)), Coil(curves[1], Current(NEUTRAL_CURRENT))])
+        points_other = random_points_away_from_coils(rng, curves)
+        points = random_points_away_from_coils(rng, curves)
+        if evaluate_A_elsewhere_first:
+            bs.set_points(points_other)
+            bs.A()
+            bs.dA_by_dX()
+            bs.d2A_by_dXdX()
+        bs.set_points(points)
+
+        derivatives = [bs.dA_by_dcoilcurrents(), bs.d2A_by_dXdcoilcurrents(), bs.d3A_by_dXdXdcoilcurrents()]
+        names = ["dA_by_dcoilcurrents", "d2A_by_dXdcoilcurrents", "d3A_by_dXdXdcoilcurrents"]
+
+        for i, curve in enumerate(curves):
+            unit = BiotSavart([Coil(curve, Current(1.0))])
+            unit.set_points(points)
+            expected = [unit.A(), unit.dA_by_dX(), unit.d2A_by_dXdX()]
+            if evaluate_A_elsewhere_first:
+                unit_other = BiotSavart([Coil(curve, Current(1.0))]).set_points(points_other)
+                stale = [unit_other.A(), unit_other.dA_by_dX(), unit_other.d2A_by_dXdX()]
+                for name, s, e in zip(names, stale, expected):
+                    assert not np.allclose(s, e), (
+                        f"{name}[{i}]: the other point set must change the values, "
+                        "otherwise a stale cache would go undetected")
+            for name, d, e in zip(names, derivatives, expected):
+                np.testing.assert_allclose(d[i], e, rtol=SAME_KERNEL_RTOL, atol=0,
+                                           err_msg=f"{name}[{i}] differs from coil {i} at unit current")
+
+    def test_vector_potential_coil_current_derivatives_on_fresh_field(self):
+        self.subtest_vector_potential_coil_current_derivatives(evaluate_A_elsewhere_first=False)
+
+    def test_vector_potential_coil_current_derivatives_after_set_points(self):
+        self.subtest_vector_potential_coil_current_derivatives(evaluate_A_elsewhere_first=True)
+
+    def test_vector_potential_vjp_wrt_coil_currents_after_set_points(self):
+        """
+        The coil-current part of `A_vjp` and `A_and_dA_vjp` uses the vector
+        potential at the current evaluation points, even if `A` was last
+        evaluated at other points.
+        """
+        rng = np.random.default_rng(2)
+        curve = get_curve()
+        current = Current(NEUTRAL_CURRENT)
+        bs = BiotSavart([Coil(curve, current)])
+        points_other = random_points_away_from_coils(rng, [curve])
+        points = random_points_away_from_coils(rng, [curve])
+        v = rng.standard_normal((NPOINTS, 3))
+        vgrad = rng.standard_normal((NPOINTS, 3, 3))
+        unit = BiotSavart([Coil(curve, Current(1.0))])
+        unit.set_points(points)
+        expected = np.sum(v * unit.A())
+        expected_grad = np.sum(vgrad * unit.dA_by_dX())
+        unit_other = BiotSavart([Coil(curve, Current(1.0))]).set_points(points_other)
+        assert not np.allclose(np.sum(v * unit_other.A()), expected), (
+            "the other point set must change the A term, otherwise a stale cache would go undetected")
+        assert not np.allclose(np.sum(vgrad * unit_other.dA_by_dX()), expected_grad), (
+            "the other point set must change the grad A term, otherwise a stale cache would go undetected")
+
+        bs.set_points(points_other)
+        bs.A()
+        bs.dA_by_dX()
+        bs.set_points(points)
+        dJ = bs.A_vjp(v)(current)
+
+        bs.set_points(points_other)
+        bs.A()
+        bs.dA_by_dX()
+        bs.set_points(points)
+        dJ_pair = bs.A_and_dA_vjp(v, vgrad)
+
+        np.testing.assert_allclose(dJ, [expected], rtol=SAME_KERNEL_RTOL, err_msg="A_vjp current derivative")
+        np.testing.assert_allclose(dJ_pair[0](current), [expected], rtol=SAME_KERNEL_RTOL,
+                                   err_msg="A_and_dA_vjp current derivative of A")
+        np.testing.assert_allclose(dJ_pair[1](current), [expected_grad], rtol=SAME_KERNEL_RTOL,
+                                   err_msg="A_and_dA_vjp current derivative of grad A")
 
     def test_dA_by_dcoilcoeff_reverse_taylortest(self):
         np.random.seed(1)
