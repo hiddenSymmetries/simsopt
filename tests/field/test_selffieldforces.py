@@ -31,6 +31,12 @@ from simsopt.field.selffield import (
 
 logger = logging.getLogger(__name__)
 
+# Upper bound on the ratio of successive relative errors in the central
+# difference Taylor tests. Each step halves eps, which divides the O(eps**2)
+# truncation error by 4, so the ideal ratio is 0.25; the bound leaves room
+# for higher-order terms at the largest steps and roundoff at the smallest.
+MAX_TAYLOR_ERROR_RATIO = 0.31
+
 
 class SpecialFunctionsTests(unittest.TestCase):
     """
@@ -1048,7 +1054,6 @@ class CoilForcesTest(unittest.TestCase):
         all_errors = []
         all_labels = []
         all_eps = []
-        max_retries = 3  # Number of retries for intermittent failures
 
         def run_taylor_test_for_objective(J, dofs, h):
             """
@@ -1114,28 +1119,12 @@ class CoilForcesTest(unittest.TestCase):
                                             for J in objectives:
                                                 label = f"{type(J).__name__}, ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={getattr(J, 'p', p)}, threshold={getattr(J, 'threshold', threshold)}, reg={reg_name}, downsample={downsample}"
                                                 config_str = f"ncoils={ncoils}, nfp={nfp}, stellsym={stellsym}, p={p}, threshold={threshold}, reg={reg_name}, downsample={downsample}, use_jax_curve={use_jax_curve}, numquadpoints={numquadpoints}, objective={type(J).__name__}"
-                                                
-                                                # Run Taylor test with retry logic
-                                                success = False
-                                                last_error_msg = None
-                                                for attempt in range(max_retries):
-                                                    errors, epsilons, success, error_msg = run_taylor_test_for_objective(J, dofs, h)
-                                                    if success:
-                                                        if attempt > 0:
-                                                            print(f"{config_str} - PASSED on retry {attempt + 1}")
-                                                        else:
-                                                            print(f"{config_str}")
-                                                        break
-                                                    else:
-                                                        last_error_msg = error_msg
-                                                        if attempt < max_retries - 1:
-                                                            print(f"{config_str} - Attempt {attempt + 1} failed, retrying... ({error_msg})")
-                                                
+
+                                                errors, epsilons, success, error_msg = run_taylor_test_for_objective(J, dofs, h)
                                                 if not success:
-                                                    # All retries failed
-                                                    print(f"{config_str} - FAILED after {max_retries} attempts")
-                                                    assert False, f"Taylor test failed after {max_retries} retries: {last_error_msg}"
-                                                
+                                                    self.fail(f"{config_str}: {error_msg}")
+                                                print(config_str)
+
                                                 all_errors.append(errors)
                                                 all_labels.append(label)
                                                 all_eps.append(epsilons)
@@ -1368,7 +1357,7 @@ class CoilForcesTest(unittest.TestCase):
             deriv_est = (Jp - Jm) / (2 * eps)
             err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
             print("test_lpcurveforces_taylor_test i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
-            np.testing.assert_array_less(err_new, 0.31 * err)
+            np.testing.assert_array_less(err_new, MAX_TAYLOR_ERROR_RATIO * err)
             err = err_new
 
     def test_circular_regularized_coil_subclass(self):

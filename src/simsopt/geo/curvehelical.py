@@ -114,7 +114,7 @@ class CurveHelical(JaxCurve):
         return 1 + 2 * self.order
 
     def get_dofs(self):
-        return self.coefficients
+        return self.coefficients.copy()
 
     def set_dofs_impl(self, dofs):
         self.coefficients[:] = dofs
