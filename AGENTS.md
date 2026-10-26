@@ -19,7 +19,7 @@ receives.
 - **What agents must not do:** push to `master` (or any other protected
   branch), force-push a branch someone else is working on, open pull
   requests, approve, or merge. Whether agents may post PR comments is an open
-  question (§8); until it is resolved, they do not.
+  question (§9); until it is resolved, they do not.
 - **The submitter has read every line.** A human submits the PR and is
   responsible for every line in it, as if they had written it by hand. If an
   agent generated code the submitter cannot explain, it does not go in.
@@ -87,7 +87,7 @@ preference:
 6. Only then: plain input/output or regression tests.
 
 **Coverage.** Aim to cover every new or changed line (the required Codecov
-patch coverage is an open question, §8). Reach it with the fewest tests that
+patch coverage is an open question, §9). Reach it with the fewest tests that
 do so; a single physics test often covers a whole code path.
 
 **Avoid test bloat.** Do not write one test per getter, duplicate tests across
@@ -128,10 +128,24 @@ that still tests the physics.
   `examples/` (added to the example runner scripts) or a tutorial page in
   `docs/source/`.
 
-## 7. Reviewing a PR (for agents assisting a human reviewer)
+## 7. PR descriptions
+
+Follow `.github/pull_request_template.md`: these headings in order, skipping
+any that don't apply, each kept short.
+
+- **Summary**: one to three sentences on what the PR does and the physics or
+  numerical problem it solves.
+- **Context**: background a reviewer needs, such as the physics, the bug and
+  its effect on users, or references. Omit for small PRs.
+- **Changes**: new or modified classes and functions (or files), one line each.
+- **Tests**: which tests cover the change and what physics each one checks.
+- **Questions**: anything you are unsure of, @mentioning the people who would
+  know.
+
+## 8. Reviewing a PR (for agents assisting a human reviewer)
 
 Report findings to the human reviewer; never approve or request changes on
-GitHub, and do not post comments there (see §8). Check, in order:
+GitHub, and do not post comments there (see §9). Check, in order:
 
 1. Is the physics correct? Equations match the cited reference, signs, units,
    normalizations, and coordinate conventions are consistent.
@@ -146,7 +160,7 @@ GitHub, and do not post comments there (see §8). Check, in order:
 
 Be specific (file and line) and brief. Flag what you could not verify.
 
-## 8. Open questions for human reviewers
+## 9. Open questions for human reviewers
 
 Decisions the maintainers have not yet made. Agents follow the current default
 until a question is resolved and this section is updated.
