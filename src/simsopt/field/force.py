@@ -919,6 +919,13 @@ class SquaredMeanForce(Optimizable):
     allows one to optimize e.g. the force on target_coils from a set of dipole coils 
     (with barely any quadrature points) and a set of TF coils (with many quadrature points).
 
+    .. tip::
+        If you're optimizing forces on many coils, pass as many of them in one call as possible, e.g.
+        ``SquaredMeanForce(base_coils, coils)``, rather than making one instance per coil and then summing them,
+        such as ``sum([SquaredMeanForce([base_coils[i]], coils) for i in range(len(base_coils))])``.
+        Each instance links to all of its source coils in the :class:`Optimizable`
+        graph, so the per-coil sum grows as :math:`O(N^2)` and makes ``JF.x = dofs`` crawl.
+
     Args:
         target_coils (list of Coil or RegularizedCoil, shape (m,)): 
             List of coils to use for computing SquaredMeanForce. 
@@ -1231,6 +1238,13 @@ class LpCurveForce(Optimizable):
     all coils must have the same number of quadrature points. The source_coils_coarse and source_coils_fine lists
     allows one to optimize e.g. the torque on target_coils from a set of dipole coils 
     (with barely any quadrature points) and a set of TF coils (with many quadrature points).
+    
+    .. tip::
+        Optimizing forces on many coils? Pass them all in one call, e.g.
+        ``LpCurveForce(base_coils, coils)``, rather than summing one instance per coil,
+        such as ``sum([LpCurveForce([base_coils[i]], coils) for i in range(len(base_coils))])``.
+        Each instance links to all of its source coils in the :class:`Optimizable`
+        graph, so the per-coil sum grows as :math:`O(N^2)` and makes ``JF.x = dofs`` crawl.
 
     Args:
         target_coils (list of RegularizedCoil, shape (m,)): 
@@ -1548,6 +1562,13 @@ class LpCurveTorque(Optimizable):
     all coils must have the same number of quadrature points. The source_coils_coarse and source_coils_fine lists
     allows one to optimize e.g. the torque on target_coils from a set of dipole coils 
     (with barely any quadrature points) and a set of TF coils (with many quadrature points).
+    
+    .. tip::
+        Optimizing torques on many coils? Pass them all in one call, e.g.
+        ``LpCurveTorque(base_coils, coils)``, rather than summing one instance per coil,
+        such as ``sum([LpCurveTorque([base_coils[i]], coils) for i in range(len(base_coils))])``.
+        Each instance links to all of its source coils in the :class:`Optimizable`
+        graph, so the per-coil sum grows as :math:`O(N^2)` and makes ``JF.x = dofs`` crawl.
 
     Args:
         target_coils (list of RegularizedCoil, shape (m,)): List of coils to use for computing LpCurveTorque. 
@@ -1841,6 +1862,13 @@ class SquaredMeanTorque(Optimizable):
     allows one to optimize e.g. the torque on target_coils from a set of dipole coils 
     (with barely any quadrature points) and a set of TF coils (with many quadrature points).
 
+    .. tip::
+        Optimizing torques on many coils? Pass them all in one call, e.g.
+        ``SquaredMeanTorque(base_coils, coils)``, rather than summing one instance per coil,
+        such as ``sum([SquaredMeanTorque([base_coils[i]], coils) for i in range(len(base_coils))])``.
+        Each instance links to all of its source coils in the :class:`Optimizable`
+        graph, so the per-coil sum grows as :math:`O(N^2)` and makes ``JF.x = dofs`` crawl.
+    
     Args:
         target_coils (list of Coil or RegularizedCoil, shape (m,)): List of coils to use for computing SquaredMeanTorque. 
         source_coils_coarse (list of Coil or RegularizedCoil, shape (m',)): 
