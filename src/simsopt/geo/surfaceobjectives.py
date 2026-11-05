@@ -960,7 +960,8 @@ class BoozerResidual(Optimizable):
         s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
         s.set_dofs(in_surface.get_dofs())
 
-        self.constraint_weight = boozer_surface.constraint_weight
+        # BoozerExact surfaces have no label penalty (constraint_weight is None)
+        self.constraint_weight = 0. if boozer_surface.constraint_weight is None else boozer_surface.constraint_weight
         self.in_surface = in_surface
         self.surface = s
         self.biotsavart = bs
@@ -1018,7 +1019,7 @@ class BoozerResidual(Optimizable):
 
         # dJ_diota, dJ_dG  to the end of dJ_ds are on the end
         dl = np.zeros((J.shape[1],))
-        dlabel_dsurface = self.boozer_surface.label.dJ_by_dsurfacecoefficients()
+        dlabel_dsurface = self.boozer_surface.dlabel_dsurface()
         dl[:dlabel_dsurface.size] = dlabel_dsurface
         Jtil = np.concatenate((J/np.sqrt(num_points), np.sqrt(self.constraint_weight) * dl[None, :]), axis=0)
         dJ_ds = Jtil.T@rtil
@@ -1074,9 +1075,12 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
     res, dres_dB = boozer_surface_residual_dB(surface, iota, G, biotsavart)
     dres_dB = dres_dB.reshape((-1, 3, 3))
 
-    lm_label = lm[-1]
+    # The last entries of lm are the multipliers of the label constraint and,
+    # without stellarator symmetry, of z(0, 0) = 0, which does not depend on the coils.
+    nconstraints = 1 if surface.stellsym else 2
+    lm_label = lm[-nconstraints]
     lmask = np.zeros(booz_surf.res["mask"].shape)
-    lmask[booz_surf.res["mask"]] = lm[:-1]
+    lmask[booz_surf.res["mask"]] = lm[:-nconstraints]
     lm_cons = lmask.reshape((-1, 3))
 
     lm_times_dres_dB = np.sum(lm_cons[:, :, None] * dres_dB, axis=1).reshape((-1, 3))
