@@ -9,7 +9,9 @@ You can run this example with one or multiple MPI processes.
 """
 
 from pathlib import Path
+
 import numpy as np
+import simsopt.mhd.vmecpp_solver
 from simsopt.configs import get_data
 from simsopt.mhd import Vmec
 from simsopt.util import MpiPartition
@@ -38,7 +40,7 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 input_file = str(TEST_DIR / "input.W7-X_standard_configuration")
 
 mpi = MpiPartition(1)
-vmec = Vmec(input_file, mpi=mpi)
+vmec = Vmec(input_file, mpi=mpi, solver=simsopt.mhd.vmecpp_solver.VmecppSolver())
 
 # That input file was for fixed-boundary. We need to change some of
 # the vmec input parameters for a free-boundary calculation:
@@ -47,12 +49,12 @@ vmec.indata.mgrid_file = mgrid_file
 vmec.indata.nzeta = nphi
 # All the coils are written into a single "current group", so we only need to
 # set a single entry in vmec's "extcur" array:
-vmec.indata.extcur[0] = 1.0
+vmec.indata.extcur = np.array([1.0])
 
 # Lower the resolution, so the example runs faster:
 vmec.indata.mpol = 6
 vmec.indata.ntor = 6
-vmec.indata.ns_array[2] = 0
+vmec.indata.ns_array = vmec.indata.ns_array[:2]
 ftol = 1e-10
 vmec.indata.ftol_array[1] = ftol
 
