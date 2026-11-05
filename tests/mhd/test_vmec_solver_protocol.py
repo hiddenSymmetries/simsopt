@@ -70,10 +70,7 @@ class VmecSolverProtocolTests(unittest.TestCase):
         self._assert_initialized_solver_conforms(Vmec2000Solver())
 
     def test_vmecpp_solver_conforms(self):
-        try:
-            from simsopt.mhd.vmecpp_solver import VmecppSolver
-        except ImportError:
-            self.skipTest("vmecpp is not installed")
+        from simsopt.mhd.vmecpp_solver import VmecppSolver
         self._assert_initialized_solver_conforms(VmecppSolver())
 
     def test_missing_member_does_not_conform(self):
