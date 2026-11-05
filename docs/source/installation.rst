@@ -34,9 +34,11 @@ Also,
 - For MPI support:
     * `mpi4py <https://github.com/mpi4py/mpi4py>`_
 - For VMEC support:
-    * `VMEC2000 <https://github.com/hiddenSymmetries/vmec2000>`_. Note that the
-      python extension in this repository is required to run VMEC or
-      optimize VMEC configurations, but is not needed for computing
+    * `VMEC++ <https://github.com/proximafusion/vmecpp>`_ (``vmecpp``), installed
+      with simsopt and used by default.
+    * Optionally `VMEC2000 <https://github.com/hiddenSymmetries/vmec2000>`_,
+      selected with ``Vmec(filename, solver=Vmec2000Solver())``. Its python
+      extension is required to run VMEC2000, but is not needed for computing
       properties of existing ``wout`` output files.
 - For computing Boozer coordinates:
     * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_
