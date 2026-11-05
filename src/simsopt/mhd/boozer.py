@@ -262,12 +262,15 @@ class Quasisymmetry(Optimizable):
            The departure from symmetry ``B(helicity_m * theta - nfp * helicity_n * zeta)`` will be reported.
         helicity_n: The toroidal mode number of the symmetry you want to achieve.
            The departure from symmetry ``B(helicity_m * theta - nfp * helicity_n * zeta)`` will be reported.
-        normalization: A uniform normalization applied to all bmnc harmonics.
+        normalization: A uniform normalization applied to the cosine and sine Fourier coefficients.
            If ``"B00"``, the symmetry-breaking modes will be divided by the m=n=0 mode amplitude
            on the same surface. If ``"symmetric"``, the symmetry-breaking modes will be
            divided by the square root of the sum of the squares of all the symmetric
            modes on the same surface. This is the normalization used in stellopt.
-        weight: An option for a m- or n-dependent weight to be applied to the bmnc amplitudes.
+           For non-stellarator-symmetric equilibria, the "symmetric"
+           normalization includes both cosine and sine coefficients,
+           excluding the identically zero sine m=n=0 mode.
+        weight: An option for weighting the cosine and sine residual components.
     """
 
     helicity_m = Integer()
@@ -323,15 +326,18 @@ class Quasisymmetry(Optimizable):
     
         Finishes by collecting the weighted, non-symmetric amplitudes from each surface into a flat 1D array. 
         
-        The array will have shape :math:`(n_s * n_{mpol} * n_{ntor},)` if ``weight="even"`` or ``weight="stellopt"``, where :math:`n_{mpol}` and :math:`n_{ntor}` are the number of non-symmetric Boozer poloidal and toroidal harmonics, respectively.  
-        If ``weight="stellopt_ornl"``, the array will instead have shape :math:`(n_s,)` (one scalar per surface).  
-             
+        The array will have shape :math:`(n_s * n_{mpol} * n_{ntor},)` if ``weight="even"`` or ``weight="stellopt"``, where :math:`n_{mpol}` and :math:`n_{ntor}` are the number of non-symmetric Boozer poloidal and toroidal harmonics, respectively.
+        For non-stellarator-symmetric equilibria, both cosine and sine coefficients are included, so the shape is :math:`(2 * n_s * n_{mpol} * n_{ntor},)`.
+        For each surface, cosine components precede sine components.
+        If ``weight="stellopt_ornl"``, the array will instead have shape:math:`(n_s,)` (one scalar per surface).
+        
         Returns
         -------
         symmetry_error : np.ndarray
             A normalized, weighted symmetry-error array.
 
-            - Shape :math:`(n_s * n_{mpol} * n_{ntor},)` for ``weight="even"`` or ``weight="stellopt"``.  
+            - Shape :math:`(n_s * n_{mpol} * n_{ntor},)` for ``weight="even"`` or ``weight="stellopt"`` in stellarator-symmetric equilibria.
+            - Shape :math:`(2 * n_s * n_{mpol} * n_{ntor},)` for ``weight="even"`` or ``weight="stellopt"`` in non-stellarator-symmetric equilibria.
             - Shape :math:`(n_s,)` for ``weight="stellopt_ornl"``.
         """
 
@@ -349,6 +355,10 @@ class Quasisymmetry(Optimizable):
             bmnc = self.boozer.bx.bmnc_b[:, index]
             xm = self.boozer.bx.xm_b
             xn = self.boozer.bx.xn_b / self.boozer.bx.nfp
+
+            bmns = None
+            if getattr(self.boozer.bx, "asym", False):
+                bmns = self.boozer.bx.bmns_b[:, index]
 
             if self.helicity_m != 0 and self.helicity_m != 1:
                 raise ValueError("m for quasisymmetry should be 0 or 1.")
@@ -381,19 +391,29 @@ class Quasisymmetry(Optimizable):
             elif self.normalization == "symmetric":
                 # Normalize by sqrt(sum_{symmetric modes} B{m,n}^2)
                 temp = bmnc[symmetric]
-                bnorm = np.sqrt(np.dot(temp, temp))
+                bnorm_squared = np.dot(temp, temp)
+                if bmns is not None:
+                    zero_mode = (xm == 0) & (xn == 0)
+                    temp = bmns[symmetric & ~zero_mode]
+                    bnorm_squared += np.dot(temp, temp)
+                bnorm = np.sqrt(bnorm_squared)
 
             else:
                 raise ValueError("Unrecognized value for normalization in Quasisymmetry")
 
             logger.info("For s={}, bnorm={}".format(s, bnorm))
             bmnc = bmnc / bnorm
+            mode_residuals = bmnc[nonsymmetric]
+            if bmns is not None:
+                mode_residuals = np.concatenate(
+                    (mode_residuals, bmns[nonsymmetric] / bnorm)
+                )
 
             # Apply any weight that depends on m and/or n:
 
             if self.weight == "even":
                 # Evenly weight each bmnc mode. Normalize by the m=n=0 mode on that surface.
-                symmetry_error.append(bmnc[nonsymmetric])
+                symmetry_error.append(mode_residuals)
 
             elif self.weight == "stellopt":
                 # Stellopt appears to apply a m-dependent radial
@@ -410,8 +430,8 @@ class Quasisymmetry(Optimizable):
                 rad_sigma[xm == 3] = s_used ** 1.5
                 """
                 rad_sigma = s_used * s_used
-                temp = bmnc / rad_sigma
-                symmetry_error.append(temp[nonsymmetric])
+                temp = mode_residuals / rad_sigma
+                symmetry_error.append(temp)
 
             elif self.weight == "stellopt_ornl":
                 # This option is similar to "stellopt" except we
@@ -423,7 +443,7 @@ class Quasisymmetry(Optimizable):
                 # when using the non-ORNL helicity! Here, we do not
                 # apply such a weight.
 
-                temp = bmnc[nonsymmetric]
+                temp = mode_residuals
                 symmetry_error.append(np.array([np.sqrt(np.sum(temp * temp))]))
 
             else:
