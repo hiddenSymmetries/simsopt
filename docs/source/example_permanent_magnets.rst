@@ -232,7 +232,7 @@ removed. Then it re-continues placing magnets::
   kwargs['max_nMagnets'] = 20000  # Stop when 20000 magnets have been placed 
   kwargs['Nadjacent'] = 10  # Look only at 10 closest neighbors for purposes of backtracking
   kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
-  algorithm = 'backtracking'
+  algorithm = 'GPMO_Backtracking'
   R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 
 Notice that with backtracking, the algorithm may run 40000 iterations and only place 19000 magnets
@@ -290,16 +290,16 @@ for that magnet. An advanced usage, using the Subset 5 orientations from the pap
   pol_vectors[:, :, 2] = mag_data.pol_z
   
   # Set pol_vectors during initialization of NCSX PermanentMagnetGrid object
-  kwargs = {"coordinate_flag": "cylindrical", "pol_vectors": pol_vectors}
+  kwargs = {"coordinate_flag": "cartesian", "pol_vectors": pol_vectors}
   famus_filename = 'init_orient_pm_nonorm_5E4_q4_dp.focus'
   pm_opt = PermanentMagnetGrid.geo_setup_from_famus(
       s, Bnormal, famus_filename, **kwargs
   )
 
 If the PermanentMagnetGrid is initialized with ``pol_vectors``, the optimization should
-be performed with the ``ArbVec`` (or, described in a moment, the ``ArbVec_backtracking``) algorithm variant::
+be performed with the ``GPMO_ArbVec`` (or, described in a moment, the ``GPMO``) algorithm variant::
 
-  algorithm = 'ArbVec'
+  algorithm = 'GPMO_ArbVec'
   R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 
 For best performance, GPMO should be used with backtracking AND orientations for 
@@ -310,15 +310,15 @@ i.e. fully oppositely oriented, but when there are many orientations available t
 often the magnets are not fully opposite). Putting this altogether, the most effective
 use of the GPMO algorithm and its variants looks something like::
 
-  algorithm = 'ArbVec_backtracking'
+  algorithm = 'GPMO'
   kwargs = initialize_default_kwargs('GPMO')
   kwargs['K'] = 20000 
   kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
-  if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
+  if algorithm in ('GPMO_Backtracking', 'GPMO'):
       kwargs['backtracking'] = 200 
       kwargs['Nadjacent'] = 10  
       kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)  # make sure C++ compatible
-      if algorithm == 'ArbVec_backtracking':
+      if algorithm == 'GPMO':
           kwargs['thresh_angle'] = np.pi * 120 / 180
           kwargs['max_nMagnets'] = 10000 
   R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
@@ -327,7 +327,7 @@ This performs GPMO with backtracking and the orientations allowed in ``pol_vecto
 only every 200 iterations, and, if a given magnet and one of its 10 nearest
 neighbors are oriented > 120 degrees with respect to each other, this pair is removed. 
 
-The ``ArbVec_backtracking`` algorithm also supports user-input initial
+The ``GPMO``, ``GPMO_py``, and ``GPMOmr`` algorithms also support user-input initial
 guesses for solutions. In the previous examples, the GPMO algorithms were
 all initialized to empty grids. To initialize to an arbitrary solution,
 use the ``m_init`` keyword argument. ``m_init`` is a 2D array with one row for
@@ -351,4 +351,112 @@ re-optimization can be performed as follows::
   R2_history2, Bn_history2, m_history2 = GPMO(pm_opt, algorithm, **kwargs)
 
 Note that initializations via the ``m_init`` keyword argument are currently 
-only supported for the ``ArbVec_backtracking`` algorithm.
+only supported for the ``GPMO``, ``GPMO_py``, and ``GPMOmr`` algorithms.
+
+Coupling via macromagnetic refinement (GPMOmr)
+----------------------------------------------
+
+The examples above treat each permanent magnet as an ideal dipole with a fixed
+maximum strength and a discrete set of allowable orientations. In practice,
+however, magnets are coupled: the field produced by nearby magnets and coils
+can alter the realized magnetization through demagnetization and finite
+permeability effects.
+
+SIMSOPT includes a coupling-aware greedy variant called ``GPMOmr`` ("greedy
+permanent magnet optimization with macromagnetic refinement"). In this mode,
+the greedy loop still places magnets using the same ArbVec scoring logic, but
+every ``mm_refine_every`` iterations it calls a macromagnetic model (MacroMag)
+to refine the magnetization of the currently active magnets and re-evaluate the
+objective. For details of this refinement strategy and coupling model, see
+`arXiv:2512.14997 <https://arxiv.org/abs/2512.14997>`__.
+
+From the user perspective, the main difference is choosing ``algorithm="GPMOmr"``
+in the :obj:`~simsopt.solve.GPMO` call and providing a few additional keyword
+arguments. The standard greedy options still apply (``K``, ``nhistory``,
+``backtracking``, ``max_nMagnets``, ``Nadjacent``, ``thresh_angle``, and
+``dipole_grid_xyz``). The additional coupling-related options are:
+
+- ``mm_refine_every``: macromagnetic refinement cadence (often written as :math:`k_{mm}`).
+- ``cube_dim``: physical magnet size used in the macromagnetic model (meters).
+- ``mu_ea`` and ``mu_oa``: relative permeabilities along / perpendicular to the easy axis.
+- ``use_demag``: include demagnetization coupling between magnets.
+- ``use_coils``: include coil fields in the macromagnetic solve.
+- ``coil_path`` and ``current_scale``: coil definition file (FOCUS) and current scaling used by MacroMag.
+
+To make the connection to the example scripts explicit, the core setup pattern in
+:simsopt_file:`examples/2_Intermediate/permanent_magnet_MUSE.py` looks like::
+
+  algorithm = "GPMOmr"  # or "GPMO"
+
+  kwargs = initialize_default_kwargs("GPMO")
+  kwargs["K"] = nIter_max
+  kwargs["nhistory"] = nHistory
+
+  # Backtracking-capable variants need adjacency information:
+  if algorithm in ("GPMO_Backtracking", "GPMO", "GPMO_py", "GPMOmr"):
+      kwargs["backtracking"] = nBacktracking
+      kwargs["max_nMagnets"] = max_nMagnets
+      kwargs["Nadjacent"] = nAdjacent
+      kwargs["dipole_grid_xyz"] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
+      if algorithm in ("GPMO", "GPMO_py", "GPMOmr"):
+          kwargs["thresh_angle"] = thresh_angle
+
+  # Coupling/refinement options (only used for GPMOmr):
+  if algorithm == "GPMOmr":
+      kwargs["mm_refine_every"] = k_mm
+      kwargs["cube_dim"] = cube_dim
+      kwargs["mu_ea"] = mu_ea
+      kwargs["mu_oa"] = mu_oa
+      kwargs["use_demag"] = True
+      kwargs["use_coils"] = True
+      kwargs["coil_path"] = coil_path
+      kwargs["current_scale"] = current_scale
+
+  R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
+
+Post-processing a MUSE run
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The example script :simsopt_file:`examples/2_Intermediate/permanent_magnet_MUSE.py` runs a
+low‑resolution MUSE case twice in sequence: first with ``algorithm="GPMO"`` and then with
+``algorithm="GPMOmr"`` using the same surface discretization, downsampled magnet grid, and
+backtracking settings. This makes the two runs directly comparable, since they differ only in
+the macromagnetic refinement step. When the script finishes, it writes a compact set of run
+artifacts into ``examples/2_Intermediate/output_permanent_magnet_GPMO_MUSE/example_lowres_compare``.
+That folder includes a ``runhistory_*.csv`` with the objective history, a ``run_*.yaml`` with the
+parameters, and final magnet grids in both ``.npz`` and ``.vtu`` formats for visualization.
+
+The first figure below is a placeholder for the GPMO grid output from this example run.
+It should be a top‑down render of the ``dipoles_final_*.vtu`` file, using the same visualization
+style as the earlier GPMO example images in this tutorial.
+
+.. image:: muse_example_GPMO_grid.png
+   :width: 450
+
+Post-processing the MUSE grid
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The MUSE grid and surface inputs used by the example live in ``tests/test_files``:
+``magtense_zot80_3d.csv`` defines the magnet positions, ``zot80.focus`` provides the FAMUS
+grid metadata, and ``input.muse`` contains the plasma boundary surface used for
+computing :math:`B_n` and :math:`f_B`. The post‑processing script
+:simsopt_file:`examples/2_Intermediate/macromag_MUSE_post_processing.py` loads those
+reference files, builds a MacroMag model, and evaluates how magnet‑magnet and
+magnet‑coil coupling perturb the surface‑normal field. It then writes VTK surface data
+and generates diagnostic summaries, which is useful for checking how coupling alters
+the effective boundary error relative to the uncoupled GPMO result.
+
+The next figure is the surface‑normal error diagnostic produced by that post‑processing
+workflow. It is a representative plot of the surface :math:`B_n` error field and shows
+the spatial structure of the coupling‑induced change rather than a single scalar metric.
+
+.. image:: MUSE_postprocessing_bn_error.png
+   :width: 450
+
+Finally, the GPMOmr run produces a coupled magnet grid in the same format as the GPMO
+output. The following placeholder is intended for the GPMOmr grid render that corresponds
+to the example run above, again using the same visualization style and orientation as the
+GPMO grid image so the difference in the final arrangement is easy to compare visually.
+
+.. image:: muse_example_GPMOmr_grid.png
+   :width: 450

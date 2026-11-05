@@ -25,7 +25,7 @@ from simsopt.field import BiotSavart, DipoleField, Coil
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.solve import GPMO
 from simsopt.objectives import SquaredFlux
-from simsopt.util import initialize_default_kwargs
+from simsopt.util import GPMOBacktrackParams
 from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils, in_github_actions
 from simsopt.util.polarization_project import (polarization_axes, orientation_phi,
                                                discretize_polarizations)
@@ -46,7 +46,7 @@ else:
 
 nphi = N
 ntheta = N
-algorithm = 'ArbVec_backtracking'
+algorithm = 'GPMO'  # ArbVec + backtracking
 nBacktracking = 200
 nAdjacent = 10
 thresh_angle = np.pi  # / np.sqrt(2)
@@ -142,7 +142,12 @@ pol_vectors[:, :, 2] = mag_data.pol_z
 B_max = 5  # 5 Tesla!!!!
 mu0 = 4 * np.pi * 1e-7
 m_maxima = B_max / mu0
-kwargs_geo = {"pol_vectors": pol_vectors, "m_maxima": m_maxima, "downsample": downsample}
+dr_pm = 0.02  # Approximate magnet brick size (m) for VTK visualization
+kwargs_geo = {
+    "pol_vectors": pol_vectors,
+    "m_maxima": m_maxima,
+    "downsample": downsample,
+}
 
 # Initialize the permanent magnet grid from the PM4Stell arrangement
 pm_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
@@ -150,18 +155,17 @@ pm_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
 )
 
 # Optimize with the GPMO algorithm
-kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = nIter_max
-kwargs['nhistory'] = nHistory
-if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
-    kwargs['backtracking'] = nBacktracking
-    kwargs['Nadjacent'] = nAdjacent
-    kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_ncsx.dipole_grid_xyz)
-    if algorithm == 'ArbVec_backtracking':
-        kwargs['thresh_angle'] = thresh_angle
-        kwargs['max_nMagnets'] = max_nMagnets
+gpmo_params = GPMOBacktrackParams(
+    K=nIter_max,
+    nhistory=nHistory,
+    backtracking=nBacktracking,
+    Nadjacent=nAdjacent,
+    dipole_grid_xyz=np.ascontiguousarray(pm_ncsx.dipole_grid_xyz),
+    max_nMagnets=max_nMagnets,
+    thresh_angle=thresh_angle,
+)
 t1 = time.time()
-R2_history, Bn_history, m_history = GPMO(pm_ncsx, algorithm, **kwargs)
+R2_history, Bn_history, m_history = GPMO(pm_ncsx, algorithm, params=gpmo_params)
 dt = time.time() - t1
 print('GPMO took t = ', dt, ' s')
 # Print effective permanent magnet volume
@@ -180,7 +184,7 @@ if not in_github_actions:
         m_maxima=pm_ncsx.m_maxima,
     )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    b_dipole._toVTK(out_dir / "Dipole_Fields")
+    b_dipole._toVTK(out_dir / "Dipole_Fields", dr_pm, dr_pm, dr_pm)
     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')
