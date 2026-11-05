@@ -1,11 +1,9 @@
 import unittest
 
 import numpy as np
-from simsopt.geo import parameters
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-parameters['jit'] = False
 
 
 def taylor_test(f, df, x, epsilons=None, direction=None, order=2):

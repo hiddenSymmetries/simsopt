@@ -7,6 +7,12 @@ from simsopt.objectives import SquaredFlux
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
+# Number of field evaluation points. The value is arbitrary, but should be at
+# least 2 and differ from the other array dimensions (3 spatial components,
+# 16 segments of the ToroidalWireframe(surf_torus(1, 2, 1), 2, 4) wireframe)
+# so that broadcasting or axis mix-ups fail.
+NPOINTS = 5
+
 
 def surf_torus(nfp, rmaj, rmin):
     surf = SurfaceRZFourier(nfp=nfp, mpol=1, ntor=0)
@@ -14,6 +20,29 @@ def surf_torus(nfp, rmaj, rmin):
     surf.set_rc(1, 0, rmin)
     surf.set_zs(1, 0, rmin)
     return surf
+
+
+def random_points_in_wireframe_hole(rng, wireframe):
+    """
+    Returns ``NPOINTS`` random field evaluation points in the cube
+    ``[-0.3, 0.3]^3``, inside the hole of ``wireframe``.
+
+    For ``ToroidalWireframe(surf_torus(1, 2, 1), 2, 4)``, the innermost wires
+    form a square in the ``z = 0`` plane with vertices 1 from the z axis, so
+    its edges are 1/sqrt(2) from the axis and every point in the cube is at
+    least 1/sqrt(2) - 0.3*sqrt(2), about 0.28, from the wires. The distance
+    from the points to every segment of ``wireframe``, in every half period,
+    is checked against that clearance.
+    """
+    points = rng.uniform(-0.3, 0.3, size=(NPOINTS, 3))
+    starts = np.concatenate([nodes[wireframe.segments[:, 0]] for nodes in wireframe.nodes])
+    ends = np.concatenate([nodes[wireframe.segments[:, 1]] for nodes in wireframe.nodes])
+    segments = ends - starts
+    relative = points[:, None, :] - starts[None, :, :]
+    t = np.clip(np.sum(relative * segments, axis=-1) / np.sum(segments * segments, axis=-1), 0, 1)
+    distance = np.linalg.norm(relative - t[..., None] * segments, axis=-1).min()
+    assert distance >= 0.28, f"an evaluation point is {distance:.3g} from a wire"
+    return points
 
 
 class WireframeFieldTests(unittest.TestCase):
@@ -44,6 +73,29 @@ class WireframeFieldTests(unittest.TestCase):
         field_wf.set_points(pts_test)
         assert np.allclose(field_wf.B(), B_analytic)
         assert np.allclose(field_wf.dB_by_dX(), dBdX_analytic)
+
+    def test_dB_by_dsegmentcurrents_not_updated_by_later_evaluations(self):
+        """
+        Arrays returned by dB_by_dsegmentcurrents keep their values after
+        the field is evaluated at new points.
+        """
+        wireframe = ToroidalWireframe(surf_torus(1, 2, 1), 2, 4)
+        field_wf = WireframeField(wireframe)
+        rng = np.random.default_rng(0)
+        points0 = random_points_in_wireframe_hole(rng, wireframe)
+        points1 = random_points_in_wireframe_hole(rng, wireframe)
+
+        field_wf.set_points(points0)
+        held = field_wf.dB_by_dsegmentcurrents(0)
+        expected = [h.copy() for h in held]
+        field_wf.set_points(points1)
+        new = field_wf.dB_by_dsegmentcurrents(0)
+
+        assert not np.allclose(np.array(new), np.array(expected)), (
+            "the second point set must change the values, otherwise a live view would go undetected")
+        for i, (h, e) in enumerate(zip(held, expected)):
+            np.testing.assert_array_equal(
+                h, e, err_msg=f"segment {i} result changed after set_points")
 
     def test_toroidal_wireframe_toroidal_field_convergence(self):
         '''

@@ -17,6 +17,7 @@ namespace py = pybind11;
 #include "pymagneticfield.h"
 #include "regular_grid_interpolant_3d.h"
 #include "pycurrent.h"
+#include "python_deprecation.h"
 typedef MagneticField<xt::pytensor> PyMagneticField;
 typedef BiotSavart<xt::pytensor, PyArray> PyBiotSavart;
 typedef WireframeField<xt::pytensor, PyArray, PyIntArray> PyWireframeField;
@@ -32,29 +33,32 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
      .def("AbsB", py::overload_cast<>(&T::AbsB), "Returns a `(npoints, 1)` array containing the absolute value of the magnetic field (in cartesian coordinates).")
      .def("GradAbsB", py::overload_cast<>(&T::GradAbsB), "Returns a `(npoints, 3)` array containing the gradient of the absolute value of the magnetic field (in cartesian coordinates).")
      .def("GradAbsB_cyl", py::overload_cast<>(&T::GradAbsB_cyl))
-     .def("B_ref", py::overload_cast<>(&T::B_ref), "As `B`, but returns a reference to the array (this array should be read only).")
-     .def("dB_by_dX_ref", py::overload_cast<>(&T::dB_by_dX_ref), "As `dB_by_dX`, but returns a reference to the array (this array should be read only).")
-     .def("d2B_by_dXdX_ref", py::overload_cast<>(&T::d2B_by_dXdX_ref), "As `d2B_by_dXdX`, but returns a reference to the array (this array should be read only).")
-     .def("AbsB_ref", py::overload_cast<>(&T::AbsB_ref), "As `AbsB`, but returns a reference to the array (this array should be read only).")
-     .def("GradAbsB_ref", py::overload_cast<>(&T::GradAbsB_ref), "As `GradAbsB`, but returns a reference to the array (this array should be read only).")
      .def("B_cyl", py::overload_cast<>(&T::B_cyl), "Return a `(npoints, 3)` array containing the magnetic field (in cylindrical coordinates) (the order is :math:`(B_r, B_\\phi, B_z)`).")
-     .def("B_cyl_ref", py::overload_cast<>(&T::B_cyl_ref), "As `B_cyl`, but returns a reference to the array (this array should be read only).")
      .def("A", py::overload_cast<>(&T::A), "Returns a `(npoints, 3)` array containing the magnetic potential (in cartesian coordinates). Denoting the indices by `i` and `l`, the result contains  `A_l(x_i)`.")
      .def("A_cyl", py::overload_cast<>(&T::A_cyl), "Return a `(npoints, 3)` array containing the magnetic potential (in cylindrical coordinates) (the order is :math:`(A_r, A_\\phi, A_z)`).")
-     .def("A_cyl_ref", py::overload_cast<>(&T::A_cyl_ref), "As `A_cyl`, but returns a reference to the array (this array should be read only).")
      .def("dA_by_dX", py::overload_cast<>(&T::dA_by_dX), "Returns a `(npoints, 3, 3)` array containing the gradient of the magnetic potential (in cartesian coordinates). Denoting the indices by `i`, `j` and `l`, the result contains  `\\partial_j A_l(x_i)`.")
      .def("d2A_by_dXdX", py::overload_cast<>(&T::d2A_by_dXdX), "Returns a `(npoints, 3, 3)` array containing the hessian of the magnetic potential (in cartesian coordinates). Denoting the indices by `i`, `j`, `k` and `l`, the result contains  `\\partial_k\\partial_j  A_l(x_i)`.")
-     .def("A_ref", py::overload_cast<>(&T::A_ref), "As `A`, but returns a reference to the array (this array should be read only).")
-     .def("dA_by_dX_ref", py::overload_cast<>(&T::dA_by_dX_ref), "As `dA_by_dX`, but returns a reference to the array (this array should be read only).")
-     .def("d2A_by_dXdX_ref", py::overload_cast<>(&T::d2A_by_dXdX_ref), "As `d2A_by_dXdX`, but returns a reference to the array (this array should be read only).")
      .def("invalidate_cache", &T::invalidate_cache, "Clear the cache. Called automatically after each call to `set_points[...]`.")
      .def("get_points_cart", &T::get_points_cart, "Get the point where the field should be evaluated in cartesian coordinates.")
      .def("get_points_cyl", &T::get_points_cyl, "Get the point where the field should be evaluated in cylindrical coordinates (the order is :math:`(r, \\phi, z)`).")
-     .def("get_points_cart_ref", &T::get_points_cart_ref, "As `get_points_cart`, but returns a reference to the array (this array should be read only).")
-     .def("get_points_cyl_ref", &T::get_points_cyl_ref, "As `get_points_cyl`, but returns a reference to the array (this array should be read only).")
+     .def("get_points_cart_ref", &T::get_points_cart_ref, "As `get_points_cart`, but returns a reference to the array (this array should be read only). The array is overwritten in place by later calls to `set_points[...]` with the same number of points; copy it before holding on to it.")
+     .def("get_points_cyl_ref", &T::get_points_cyl_ref, "As `get_points_cyl`, but returns a reference to the array (this array should be read only). The array is overwritten in place by later calls to `set_points[...]` with the same number of points; copy it before holding on to it.")
      .def("set_points_cart", &T::set_points_cart, "Set the points where to evaluate the magnetic fields, in cartesian coordinates.")
      .def("set_points_cyl", &T::set_points_cyl, "Set the points where to evaluate the magnetic fields, in cylindrical coordinates (the order is :math:`(r, \\phi, z)`).")
      .def("set_points", &T::set_points, "Shorthand for `set_points_cart`.");
+
+    // Private cache accessors, each with a deprecated public alias kept for backward compatibility;
+    // in-tree code must use the private names.
+    def_cache_ref(c, "B", py::overload_cast<>(&T::B_ref));
+    def_cache_ref(c, "dB_by_dX", py::overload_cast<>(&T::dB_by_dX_ref));
+    def_cache_ref(c, "d2B_by_dXdX", py::overload_cast<>(&T::d2B_by_dXdX_ref));
+    def_cache_ref(c, "AbsB", py::overload_cast<>(&T::AbsB_ref));
+    def_cache_ref(c, "GradAbsB", py::overload_cast<>(&T::GradAbsB_ref));
+    def_cache_ref(c, "B_cyl", py::overload_cast<>(&T::B_cyl_ref));
+    def_cache_ref(c, "A_cyl", py::overload_cast<>(&T::A_cyl_ref));
+    def_cache_ref(c, "A", py::overload_cast<>(&T::A_ref));
+    def_cache_ref(c, "dA_by_dX", py::overload_cast<>(&T::dA_by_dX_ref));
+    def_cache_ref(c, "d2A_by_dXdX", py::overload_cast<>(&T::d2A_by_dXdX_ref));
 }
 
 void init_magneticfields(py::module_ &m){
@@ -104,8 +108,11 @@ void init_magneticfields(py::module_ &m){
     auto bs = py::class_<PyBiotSavart, PyMagneticFieldTrampoline<PyBiotSavart>, shared_ptr<PyBiotSavart>, PyMagneticField>(m, "BiotSavart")
         .def(py::init<vector<shared_ptr<Coil<PyArray>>>>())
         .def("compute", &PyBiotSavart::compute)
-        .def("fieldcache_get_or_create", &PyBiotSavart::fieldcache_get_or_create)
-        .def("fieldcache_get_status", &PyBiotSavart::fieldcache_get_status)
+        .def("compute_A", &PyBiotSavart::compute_A)
+        .def("_fieldcache_get_or_create", &PyBiotSavart::fieldcache_get_or_create)
+        .def("_fieldcache_get_status", &PyBiotSavart::fieldcache_get_status)
+        .def("fieldcache_get_or_create", deprecated_alias(&PyBiotSavart::fieldcache_get_or_create, fieldcache_deprecation_message("fieldcache_get_or_create", "dB_by_dcoilcurrents() and dA_by_dcoilcurrents()")), "Deprecated alias of `_fieldcache_get_or_create`, an internal field-cache hook. Returns a live cached array.")
+        .def("fieldcache_get_status", deprecated_alias(&PyBiotSavart::fieldcache_get_status, fieldcache_deprecation_message("fieldcache_get_status", "dB_by_dcoilcurrents() and dA_by_dcoilcurrents()")), "Deprecated alias of `_fieldcache_get_status`, an internal field-cache hook.")
         .def_readonly("coils", &PyBiotSavart::coils);
     register_common_field_methods<PyBiotSavart>(bs);
 
@@ -123,8 +130,10 @@ void init_magneticfields(py::module_ &m){
     auto wf = py::class_<PyWireframeField, PyMagneticFieldTrampoline<PyWireframeField>, shared_ptr<PyWireframeField>, PyMagneticField>(m, "WireframeField")
         .def(py::init<vector<PyArray>, PyIntArray&, vector<double>, PyArray&>())
         .def("compute", &PyWireframeField::compute)
-        .def("fieldcache_get_or_create", &PyWireframeField::fieldcache_get_or_create)
-        .def("fieldcache_get_status", &PyWireframeField::fieldcache_get_status);
+        .def("_fieldcache_get_or_create", &PyWireframeField::fieldcache_get_or_create)
+        .def("_fieldcache_get_status", &PyWireframeField::fieldcache_get_status)
+        .def("fieldcache_get_or_create", deprecated_alias(&PyWireframeField::fieldcache_get_or_create, fieldcache_deprecation_message("fieldcache_get_or_create", "dB_by_dsegmentcurrents()")), "Deprecated alias of `_fieldcache_get_or_create`, an internal field-cache hook. Returns a live cached array.")
+        .def("fieldcache_get_status", deprecated_alias(&PyWireframeField::fieldcache_get_status, fieldcache_deprecation_message("fieldcache_get_status", "dB_by_dsegmentcurrents()")), "Deprecated alias of `_fieldcache_get_status`, an internal field-cache hook.");
     register_common_field_methods<PyWireframeField>(wf);
 
 }

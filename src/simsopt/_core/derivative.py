@@ -106,6 +106,12 @@ class Derivative:
     returning the ``Derivative`` object, acting as a shorthand for
     ``obj.dJ(partials=True)(obj)``. This behavior is implemented with
     the decorator :obj:`derivative_dec`.
+
+    Values stored in a ``Derivative`` are not coerced to NumPy. In particular,
+    ``obj.dJ(partials=True)`` may retain asynchronous, JAX-backed arrays so
+    callers can combine partial derivatives without an implicit device-to-host
+    synchronization. The ordinary ``obj.dJ()`` path assembles the full
+    gradient into NumPy arrays.
     """
 
     def __init__(self, data=OptimizableDefaultDict({})):
@@ -223,7 +229,9 @@ def derivative_dec(func):
     equivalent to ``obj.dJ(partials=True)(obj)``. If
     ``partials=True``, the underlying :obj:`Derivative` object will be
     returned, so partial derivatives can be accessed and combined to
-    assemble gradients.
+    assemble gradients. This branch deliberately does not materialize or
+    convert the values stored in the ``Derivative``; they may remain
+    asynchronous or JAX-backed.
     """
 
     def _derivative_dec(self, *args, partials=False, **kwargs):

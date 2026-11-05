@@ -13,6 +13,7 @@ from matplotlib.gridspec import GridSpec
 import matplotlib.colors as mpl_colors
 
 import simsoptpp as sopp
+from .jit import jit
 from .surface import Surface
 from .._core.optimizable import Optimizable
 from .._core.util import nested_lists_to_array
@@ -1601,7 +1602,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             Rmnc_new, Zmns_new, _ = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             return jnp.concatenate([Rmnc_new, Zmns_new])
 
-        @jax.jit
+        @jit
         def compute_RZ_errors(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             Rmnc_new, Zmns_new, theta2_1d = _compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             R_new = jnp.sum(Rmnc_new[None, :] * jnp.cos(m_for_R[None, :] * theta2_1d[:, None] - nfp * n_for_R[None, :] * phi_1d[:, None]), axis=1)
@@ -1618,7 +1619,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 print(f"(Max error in fitting R or Z of points) / minor_radius: {max_error:.3e}", flush=True)
             return max_error
 
-        @jax.jit
+        @jit
         def residuals_func(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             """Objective function for spectral width."""
             x = compute_r2mn_and_z2mn(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
@@ -1626,7 +1627,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             # The first residual is always zero (since m=n=0) so there is no need to include it:
             return residuals[1:]
 
-        @jax.jit
+        @jit
         def scalar_objective(lambda_dofs, m_for_lambda, n_for_lambda, x_scale):
             residuals = residuals_func(lambda_dofs, m_for_lambda, n_for_lambda, x_scale)
             return 0.5 * jnp.sum(residuals**2)
@@ -1642,7 +1643,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         n_constraints = R_to_fit.size + Z_to_fit.size
 
-        jac_constraints = jax.jit(jax.jacfwd(compute_RZ_errors))
+        jac_constraints = jit(jax.jacfwd(compute_RZ_errors))
 
         initial_objective = scalar_objective(
             np.zeros_like(m_for_lambda_full),
@@ -1684,7 +1685,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                             lambda_dofs[j_new] = lambda_dofs_optimized[j_old]
 
             if method_is_lstsq:
-                jac_fn = jax.jit(jax.jacfwd(residuals_func))
+                jac_fn = jit(jax.jacfwd(residuals_func))
                 if verbose:
                     verbose_for_least_squares = 2
                 else:
@@ -1719,7 +1720,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 else:
                     objective_to_use = scalar_objective
 
-                grad_objective = jax.jit(jax.grad(scalar_objective))
+                grad_objective = jit(jax.grad(scalar_objective))
                 res = minimize(
                     objective_to_use,
                     lambda_dofs,
@@ -1731,7 +1732,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 )
             else:
                 # Other non-least-squares methods:
-                grad_objective = jax.jit(jax.grad(scalar_objective))
+                grad_objective = jit(jax.grad(scalar_objective))
                 if verbose:
                     objective_to_use = scalar_objective_with_printing
                 else:
