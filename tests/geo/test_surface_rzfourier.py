@@ -1502,6 +1502,76 @@ class SurfaceRZFourierTests(unittest.TestCase):
             np.testing.assert_array_less(data["max_RZ_error"], max_allowed_error)
 
 
+def reparametrized_circular_torus(R0=1.0, a=0.3, eps=0.3, mpol=10, ntor=1, nfp=2):
+    """
+    Circular torus with the non-uniform poloidal angle theta + eps*sin(theta).
+
+    The shape is exactly a circle, but the spectrum is broad, so spectral
+    condensation has something to remove without any change in shape.
+    """
+    theta = np.linspace(0, 2 * np.pi, 256, endpoint=False)
+    R = R0 + a * np.cos(theta + eps * np.sin(theta))
+    Z = a * np.sin(theta + eps * np.sin(theta))
+    surf = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+    surf.set_rc(0, 0, np.mean(R))
+    for m in range(1, mpol + 1):
+        surf.set_rc(m, 0, 2 * np.mean(R * np.cos(m * theta)))
+        surf.set_zs(m, 0, 2 * np.mean(Z * np.sin(m * theta)))
+    return surf
+
+
+def hirshman_meier_M(surf, p=4, q=1):
+    """Spectral measure minimized by variational_spec_cond."""
+    S = (surf.rc ** 2 + surf.zs ** 2).sum(axis=1)
+    m = np.arange(surf.mpol + 1)
+    return (m ** (p + q) * S).sum() / (m ** p * S).sum()
+
+
+class VariationalSpectralCondensationTests(unittest.TestCase):
+
+    def test_reduces_M_and_keeps_shape(self):
+        from simsopt.objectives.shape_errors import angle_matched_shape_error, build_angle_matched_reference
+        surf = reparametrized_circular_torus()
+        x0 = surf.x.copy()
+        ref = build_angle_matched_reference(surf, nu=16, nv=16)
+        for shapetol in (None, 2e-3):
+            with self.subTest(shapetol=shapetol):
+                out = surf.variational_spec_cond(shapetol=shapetol, ftol=1e-6, Mtol=1.01, niters=100, cutoff=1e-10)
+                self.assertLess(hirshman_meier_M(out), hirshman_meier_M(surf))
+                self.assertLess(out.spectral_width(), surf.spectral_width())
+                if shapetol is not None:
+                    self.assertLess(np.mean(angle_matched_shape_error(out, ref)), shapetol)
+                # still a circle of the same size, up to the condensation's own distortion
+                g = out.gamma()
+                R = np.hypot(g[..., 0], g[..., 1])
+                np.testing.assert_allclose(np.hypot(R - 1.0, g[..., 2]), 0.3, atol=1e-2)
+                np.testing.assert_allclose(surf.x, x0)  # input untouched
+
+    def test_dofs_match_coefficients(self):
+        out = reparametrized_circular_torus().variational_spec_cond(ftol=1e-6, niters=20)
+        np.testing.assert_allclose(out.x, out.get_dofs())
+        rc = out.rc.copy()
+        out.x = out.x  # a later dof update must not undo the condensation
+        np.testing.assert_allclose(out.rc, rc)
+
+    def test_stops_when_M_is_already_low(self):
+        surf = reparametrized_circular_torus(eps=0.05)
+        out = surf.variational_spec_cond(Mtol=1.1, ftol=0, niters=1000)
+        self.assertLess(hirshman_meier_M(surf), 1.1)
+        np.testing.assert_allclose(out.x, surf.x, atol=1e-3)
+
+    def test_shapetol_too_tight_raises(self):
+        with self.assertRaises(RuntimeError):
+            reparametrized_circular_torus().variational_spec_cond(shapetol=1e-12, ftol=1e-6)
+
+    def test_plot(self):
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        reparametrized_circular_torus().variational_spec_cond(plot=True, ftol=1e-6, niters=5)
+        plt.close("all")
+
+
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
         """

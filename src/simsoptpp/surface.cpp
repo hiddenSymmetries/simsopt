@@ -360,9 +360,6 @@ void Surface<Array>::surface_curvatures_impl(Array& data) {
   auto d2rd1d1 = this->gammadash1dash1();
   auto d2rd1d2 = this->gammadash1dash2();
   auto d2rd2d2 = this->gammadash2dash2();
-  auto dg1_dc = this->dgammadash1_by_dcoeff();
-  auto dg2_dc = this->dgammadash2_by_dcoeff();
-  int ndofs = num_dofs();
 
   auto first = this->first_fund_form();
   auto second = this->second_fund_form();

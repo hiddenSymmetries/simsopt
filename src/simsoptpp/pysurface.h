@@ -36,4 +36,13 @@ template <class SurfaceBase = PySurface> class PySurfaceTrampoline : public Surf
         virtual void gammadash2_impl(PyArray& data) override {
             PYBIND11_OVERLOAD(void, SurfaceBase, gammadash2_impl, data);
         }
+        virtual void gammadash1dash1_impl(PyArray& data) override {
+            PYBIND11_OVERLOAD(void, SurfaceBase, gammadash1dash1_impl, data);
+        }
+        virtual void gammadash1dash2_impl(PyArray& data) override {
+            PYBIND11_OVERLOAD(void, SurfaceBase, gammadash1dash2_impl, data);
+        }
+        virtual void gammadash2dash2_impl(PyArray& data) override {
+            PYBIND11_OVERLOAD(void, SurfaceBase, gammadash2dash2_impl, data);
+        }
 };
