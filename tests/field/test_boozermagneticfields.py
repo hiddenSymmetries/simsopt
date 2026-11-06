@@ -117,6 +117,12 @@ class TestingAnalytic(unittest.TestCase):
 
 @unittest.skipIf(vmec is None, "vmec python package is not found")
 class TestingVmec(unittest.TestCase):
+    def test_boozer_flux_sign_from_vmec(self):
+        for path in (filename, filename_mhd_lasym):
+            equil = Vmec(path)
+            field = BoozerRadialInterpolant(equil, order=3, mpol=3, ntor=3, no_K=True)
+            self.assertAlmostEqual(field.psi0, -equil.wout.phi[-1]/(2*np.pi))
+
     def test_boozerradialinterpolant_finite_beta(self):
         """
         This first loop tests a finite-beta equilibria
