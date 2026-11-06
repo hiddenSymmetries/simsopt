@@ -32,10 +32,9 @@ class Surface {
 
         Array& check_the_cache(string key, vector<int> dims, std::function<void(Array&)> impl){
             auto loc = cache.find(key);
-            if(loc == cache.end()){ // Key not found --> allocate array
-                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first;
-            }
-            if(!((loc->second).status)){ // needs recomputing
+            if(loc == cache.end() || !((loc->second).status)){ // missing or stale --> recompute
+                // Allocate anew so that arrays returned earlier keep their values.
+                loc = cache.insert_or_assign(key, CachedArray<Array>(xt::zeros<double>(dims))).first;
                 impl((loc->second).data);
                 (loc->second).status = true;
             }
