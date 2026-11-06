@@ -92,6 +92,14 @@ simsopt.field.normal\_field module
    :undoc-members:
    :show-inheritance:
 
+simsopt.field.poincareplotter module
+------------------------------------
+
+.. automodule:: simsopt.field.poincareplotter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.field.sampling module
 -----------------------------
 
