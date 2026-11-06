@@ -19,18 +19,40 @@ achieved as well. This example demonstrates the adjustment of weights and
 penalties via the use of the `Weight` class.
 
 The target equilibrium is the QA configuration of arXiv:2108.03711.
+Use --use-jax to select the optional JAX field; the native field is the default.
+In CI the JAX path runs 10 iterations per stage; the native path runs 50.
 """
 
+import argparse
+from typing import cast
 import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
+from simsopt._core.optimizable import Optimizable
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.geo import (SurfaceRZFourier, curves_to_vtk, create_equally_spaced_curves,
                          CurveLength, CurveCurveDistance, MeanSquaredCurvature,
                          LpCurveCurvature, CurveSurfaceDistance)
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 from simsopt.util import in_github_actions
+
+try:
+    from simsopt_jax.backend import set_backend
+    from simsopt_jax_adapters.field import JaxBiotSavart
+except ImportError as error:
+    jax_import_error = str(error)
+else:
+    jax_import_error = None
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--use-jax", action="store_true", help="Use the optional JAX Biot-Savart field")
+parser.add_argument("--device", choices=("cpu", "gpu"), default="cpu")
+args = parser.parse_args()
+if args.use_jax:
+    if jax_import_error is not None:
+        parser.error(f"--use-jax requires Python >= 3.11 and jax/jaxlib >= 0.10: {jax_import_error}")
+    set_backend("jax", device="gpu" if args.device == "gpu" else "cpu", intent="parity")
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -67,7 +89,7 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
-MAXITER = 50 if in_github_actions else 400
+MAXITER = (10 if args.use_jax else 50) if in_github_actions else 400
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -84,7 +106,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Initialize the boundary magnetic surface:
 nphi = 32
 ntheta = 32
-s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(str(filename), range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
@@ -95,12 +117,12 @@ base_currents = [Current(1e5) for i in range(ncoils)]
 base_currents[0].fix_all()
 
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-bs = BiotSavart(coils)
+bs = JaxBiotSavart(coils) if args.use_jax else BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 curves = [c.curve for c in coils]
 curves_to_vtk(curves, OUT_DIR + "curves_init")
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the individual terms objective function:
@@ -116,7 +138,7 @@ Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + LENGTH_WEIGHT * sum(Jls) \
+    + LENGTH_WEIGHT * cast(Optimizable, sum(Jls)) \
     + CC_WEIGHT * Jccdist \
     + CS_WEIGHT * Jcsdist \
     + CURVATURE_WEIGHT * sum(Jcs) \
@@ -132,7 +154,7 @@ def fun(dofs):
     J = JF.J()
     grad = JF.dJ()
     jf = Jf.J()
-    BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+    BdotN = np.mean(np.abs(np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
@@ -150,7 +172,7 @@ print("""
 ################################################################################
 """)
 f = fun
-dofs = JF.x
+dofs = cast(np.ndarray, JF.x)
 np.random.seed(1)
 h = np.random.uniform(size=dofs.shape)
 J0, dJ0 = f(dofs)
@@ -167,7 +189,7 @@ print("""
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + "curves_opt_short")
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
 
 
@@ -178,7 +200,7 @@ dofs = res.x
 LENGTH_WEIGHT *= 0.1
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + "curves_opt_long")
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
 
 # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
