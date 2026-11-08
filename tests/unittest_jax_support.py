@@ -290,3 +290,42 @@ def jax_compilations() -> Iterator[list[str]]:
         yield events
     finally:
         jax.monitoring.unregister_event_duration_listener(record)
+
+
+def assert_matches_native(
+    actual, expected, name: str, rtol: float = 1e-12, scale: float | None = None
+) -> None:
+    """``actual`` has native's shape and agrees with native's ``expected`` to
+    ``rtol`` times ``scale``, by default the largest native entry (a float64
+    round-off bound where JAX and native sum in different orders)."""
+    actual = host_array(actual, dtype=np.float64)
+    expected = np.asarray(expected, dtype=np.float64)
+    assert actual.shape == expected.shape, f"{name}: shape {actual.shape} != native {expected.shape}"
+    reference = np.max(np.abs(expected), initial=0.0) if scale is None else scale
+    np.testing.assert_allclose(
+        actual, expected, rtol=0.0, atol=rtol * reference, err_msg=f"{name} differs from native"
+    )
+
+
+def assert_errors_shrink(
+    testcase: TestCase,
+    errors,
+    factor: float,
+    floor: float = 0.0,
+    msg: str | None = None,
+    *,
+    initial: float = np.inf,
+) -> None:
+    """Each error in ``errors`` is below ``factor`` times the one before it
+    (``initial`` before the first), or below ``floor`` when that is larger (a
+    Taylor test at halving steps)."""
+    previous = initial
+    for error in errors:
+        testcase.assertLess(error, max(floor, factor * previous), msg)
+        previous = error
+
+
+def scaled_direction(x0: np.ndarray, seed: int) -> np.ndarray:
+    """A seeded normal direction moving each entry of ``x0`` by a fraction of
+    its own size (of one, for entries smaller than one)."""
+    return parity_rng(seed).standard_normal(x0.size) * np.maximum(np.abs(x0), 1.0)
