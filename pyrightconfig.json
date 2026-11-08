@@ -42,7 +42,8 @@
     "tests/geo/test_curve_objectives_jax.py",
     "tests/objectives/test_squared_flux_jax.py",
     "tests/objectives/test_stage_two.py",
-    "tests/field/test_force_jax.py"
+    "tests/field/test_force_jax.py",
+    "tests/objectives/test_stage_two_coil_terms.py"
   ],
   "extraPaths": [
     "src",

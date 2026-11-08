@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Callable, Tuple
+
 import numpy as np
-from unittest_jax_support import JaxTestCase, optional_jax_imports
+from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase, optional_jax_imports
 
 with optional_jax_imports():
     import jax
@@ -29,8 +31,17 @@ with optional_jax_imports():
     from simsopt_jax.objectives.stage_two import (
         _ordinary_curve_geometry,
         stage_two_coil_geometry,
+        stage_two_geometry,
     )
     from simsopt_jax_adapters.field import JaxBiotSavart
+
+
+# typing.Callable and typing.Tuple keep this runtime alias importable on Python 3.8,
+# where unittest discovery must reach the JAX gate and skip.
+GeometryFunction = Callable[
+    ["CoilSetDofExtractionSpec", "jax.Array"],
+    Tuple["jax.Array", "jax.Array", "jax.Array", "jax.Array"],
+]
 
 
 def _dof_map(
@@ -157,6 +168,26 @@ def _scalar_geometry(
     )
 
 
+def _ordinary_stage_two_geometry(
+    extraction: CoilSetDofExtractionSpec, parameters: jax.Array
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    """Project the fused ordinary-coil route onto ``stage_two_coil_geometry``'s outputs."""
+    geometry = stage_two_geometry(extraction, parameters)
+    return (
+        geometry.gamma,
+        geometry.gammadash,
+        geometry.centerline_gammadashdash,
+        geometry.currents,
+    )
+
+
+if JAX_IMPORT_ERROR is None:
+    _GEOMETRY_FUNCTIONS: tuple[GeometryFunction, ...] = (
+        stage_two_coil_geometry,
+        _ordinary_stage_two_geometry,
+    )
+
+
 def _geometry_energy(geometry: tuple[jax.Array, ...]) -> jax.Array:
     # Nonlinear geometry and current terms exercise both first and second derivatives.
     return sum(
@@ -171,19 +202,39 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
     ) -> None:
         """Batched geometry matches per-curve evaluation for curves with different grids and symmetries."""
         extraction, parameters = _mixed_problem()
-        actual = jit(stage_two_coil_geometry)(extraction, parameters)
         expected = _scalar_geometry(extraction, parameters)
-        for value, reference in zip(actual, expected, strict=True):
-            np.testing.assert_allclose(value, reference, rtol=3e-13, atol=3e-12)
-        np.testing.assert_allclose(actual[3], (7.0, 0.1, -0.48, 7.0, -4.2))
-        self.assertFalse(np.allclose(actual[0][0], actual[0][1]))
+        geometry = stage_two_geometry(extraction, parameters)
+        np.testing.assert_allclose(
+            geometry.centerline_gamma, expected[0], rtol=3e-13, atol=3e-12
+        )
+        np.testing.assert_allclose(
+            geometry.centerline_gammadash, expected[1], rtol=3e-13, atol=3e-12
+        )
+        for geometry_function in _GEOMETRY_FUNCTIONS:
+            with self.subTest(geometry=geometry_function.__name__), self.case():
+                extraction, parameters = _mixed_problem()
+                actual = jit(geometry_function)(extraction, parameters)
+                expected = _scalar_geometry(extraction, parameters)
+                for value, reference in zip(actual, expected, strict=True):
+                    np.testing.assert_allclose(value, reference, rtol=3e-13, atol=3e-12)
+                np.testing.assert_allclose(actual[3], (7.0, 0.1, -0.48, 7.0, -4.2))
+                self.assertFalse(np.allclose(actual[0][0], actual[0][1]))
 
     def test_mixed_geometry_gradients_and_hessian_vector_match_scalar(self) -> None:
         """Gradients and Hessian-vector products of batched geometry match per-curve evaluation."""
+        for geometry_function in _GEOMETRY_FUNCTIONS:
+            with self.subTest(geometry=geometry_function.__name__), self.case():
+                self._case_mixed_geometry_gradients_and_hessian_vector_match_scalar(
+                    geometry_function
+                )
+
+    def _case_mixed_geometry_gradients_and_hessian_vector_match_scalar(
+        self, geometry_function: GeometryFunction
+    ) -> None:
         extraction, parameters = _mixed_problem()
 
         def batched(values: jax.Array) -> jax.Array:
-            return _geometry_energy(stage_two_coil_geometry(extraction, values))
+            return _geometry_energy(geometry_function(extraction, values))
 
         def scalar(values: jax.Array) -> jax.Array:
             return _geometry_energy(_scalar_geometry(extraction, values))
@@ -202,24 +253,35 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
 
     def test_absent_source_indices_preserve_separate_curve_mappings(self) -> None:
         """Coils without a shared source curve keep their own DOF mappings."""
-        extraction, parameters = _mixed_problem()
-        first = _with_curve_mapping(
-            extraction.coils[0], extraction.coils[0].curve_map, None
-        )
-        second = _with_curve_mapping(first, _dof_map(first.curve.dofs), None)
-        independent = make_coil_set_dof_extraction_spec((first, second))
-        actual = stage_two_coil_geometry(independent, parameters)
-        expected = _scalar_geometry(independent, parameters)
-        for value, reference in zip(actual, expected, strict=True):
-            np.testing.assert_allclose(value, reference, rtol=3e-13, atol=3e-12)
-        self.assertFalse(np.allclose(actual[0][0], actual[0][1]))
+        for geometry_function in _GEOMETRY_FUNCTIONS:
+            with self.subTest(geometry=geometry_function.__name__), self.case():
+                extraction, parameters = _mixed_problem()
+                first = _with_curve_mapping(
+                    extraction.coils[0], extraction.coils[0].curve_map, None
+                )
+                second = _with_curve_mapping(first, _dof_map(first.curve.dofs), None)
+                independent = make_coil_set_dof_extraction_spec((first, second))
+                actual = geometry_function(independent, parameters)
+                expected = _scalar_geometry(independent, parameters)
+                for value, reference in zip(actual, expected, strict=True):
+                    np.testing.assert_allclose(value, reference, rtol=3e-13, atol=3e-12)
+                self.assertFalse(np.allclose(actual[0][0], actual[0][1]))
 
     def test_current_derivatives_do_not_couple_nonfinite_geometry(self) -> None:
         """Infinite geometry tangents do not reach currents, and infinite current cotangents do not reach geometry DOFs."""
+        for geometry_function in _GEOMETRY_FUNCTIONS:
+            with self.subTest(geometry=geometry_function.__name__), self.case():
+                self._case_current_derivatives_do_not_couple_nonfinite_geometry(
+                    geometry_function
+                )
+
+    def _case_current_derivatives_do_not_couple_nonfinite_geometry(
+        self, geometry_function: GeometryFunction
+    ) -> None:
         extraction, parameters = _mixed_problem()
 
         def currents(values: jax.Array) -> jax.Array:
-            return stage_two_coil_geometry(extraction, values)[3]
+            return geometry_function(extraction, values)[3]
 
         tangent = jnp.zeros_like(parameters).at[0].set(jnp.inf)
         _, current_tangent = jax.jvp(currents, (parameters,), (tangent,))
@@ -230,18 +292,29 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
 
     def test_geometry_jvp_preserves_explicit_transfer_placement(self) -> None:
         """The compiled geometry JVP runs with host-to-device transfers disallowed."""
+        for geometry_function in _GEOMETRY_FUNCTIONS:
+            with self.subTest(geometry=geometry_function.__name__), self.case():
+                self._case_geometry_jvp_preserves_explicit_transfer_placement(
+                    geometry_function
+                )
+
+    def _case_geometry_jvp_preserves_explicit_transfer_placement(
+        self, geometry_function: GeometryFunction
+    ) -> None:
         extraction, parameters = _mixed_problem()
         tangent = jnp.ones_like(parameters)
 
         @jit
         def evaluate(
-            spec: CoilSetDofExtractionSpec, values: jax.Array, direction: jax.Array
+            spec: CoilSetDofExtractionSpec,
+            values: jax.Array,
+            direction: jax.Array,
         ) -> tuple[
             tuple[jax.Array, jax.Array, jax.Array, jax.Array],
             tuple[jax.Array, jax.Array, jax.Array, jax.Array],
         ]:
             return jax.jvp(
-                lambda current_values: stage_two_coil_geometry(spec, current_values),
+                lambda current_values: geometry_function(spec, current_values),
                 (values,),
                 (direction,),
             )
@@ -253,41 +326,55 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
 
     def test_homogeneous_geometry_batches_fourier_dot_graph(self) -> None:
         """Identical curve layouts share one batched Fourier contraction instead of one per curve."""
-        extraction, parameters = _mixed_problem()
-        first = extraction.coils[0]
-        homogeneous = make_coil_set_dof_extraction_spec(
-            tuple(
-                _with_curve_mapping(first, first.curve_map, index) for index in range(4)
-            )
-        )
-        scalar = jax.make_jaxpr(_scalar_geometry)(homogeneous, parameters)
-        batched = jax.make_jaxpr(stage_two_coil_geometry)(homogeneous, parameters)
-        # Owner-map matvecs remain per curve. Only Fourier contractions have two
-        # matrix operands; their batch metadata must identify the new mapped axis.
-        scalar_dots, batched_dots = (
-            tuple(
-                equation
-                for equation in graph.jaxpr.eqns
-                if equation.primitive.name == "dot_general"
-                and all(len(operand.aval.shape) >= 2 for operand in equation.invars)
-            )
-            for graph in (scalar, batched)
-        )
-        self.assertGreater(len(scalar_dots), 0)
-        self.assertEqual(len(batched_dots) * 4, len(scalar_dots))
-        self.assertTrue(
-            all(
-                equation.params["dimension_numbers"][1] == ((0,), (0,))
-                for equation in batched_dots
-            )
-        )
+        for geometry_function in _GEOMETRY_FUNCTIONS:
+            with self.subTest(geometry=geometry_function.__name__), self.case():
+                extraction, parameters = _mixed_problem()
+                first = extraction.coils[0]
+                homogeneous = make_coil_set_dof_extraction_spec(
+                    tuple(
+                        _with_curve_mapping(first, first.curve_map, index)
+                        for index in range(4)
+                    )
+                )
+                scalar = jax.make_jaxpr(_scalar_geometry)(homogeneous, parameters)
+                batched = jax.make_jaxpr(geometry_function)(homogeneous, parameters)
+                # Owner-map matvecs remain per curve. Only Fourier contractions have two
+                # matrix operands; their batch metadata must identify the new mapped axis.
+                scalar_dots, batched_dots = (
+                    tuple(
+                        equation
+                        for equation in graph.jaxpr.eqns
+                        if equation.primitive.name == "dot_general"
+                        and all(
+                            len(operand.aval.shape) >= 2 for operand in equation.invars
+                        )
+                    )
+                    for graph in (scalar, batched)
+                )
+                self.assertGreater(len(scalar_dots), 0)
+                self.assertEqual(len(batched_dots) * 4, len(scalar_dots))
+                self.assertTrue(
+                    all(
+                        equation.params["dimension_numbers"][1] == ((0,), (0,))
+                        for equation in batched_dots
+                    )
+                )
 
     def test_compiled_current_derivatives_match_native_under_transfer_guard(
         self,
     ) -> None:
         """Compiled coil currents and their JVP and VJP match native currents with transfers disallowed."""
-        # Match the plain-current native fixture of the source eager AD oracle;
-        # affine term assembly is a separate preexisting placement boundary.
+        for geometry_function in _GEOMETRY_FUNCTIONS:
+            with self.subTest(geometry=geometry_function.__name__), self.case():
+                # Match the plain-current native fixture of the source eager AD oracle;
+                # affine term assembly is a separate preexisting placement boundary.
+                self._case_compiled_current_derivatives_match_native_under_transfer_guard(
+                    geometry_function
+                )
+
+    def _case_compiled_current_derivatives_match_native_under_transfer_guard(
+        self, geometry_function: GeometryFunction
+    ) -> None:
         curves = create_equally_spaced_curves(
             2, 2, True, R0=1.0, R1=0.25, order=1, numquadpoints=8
         )
@@ -313,7 +400,7 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
             weights: jax.Array,
         ) -> tuple[jax.Array, jax.Array, jax.Array]:
             def currents(current_values: jax.Array) -> jax.Array:
-                return stage_two_coil_geometry(spec, current_values)[3]
+                return geometry_function(spec, current_values)[3]
 
             current_values, pushforward = jax.linearize(currents, values)
             current_tangent = pushforward(direction)

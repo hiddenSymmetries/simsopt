@@ -46,6 +46,7 @@ __all__ = [
     "curve_gamma_and_gammadash_from_dofs",
     "curve_gamma_and_gammadash_from_spec",
     "curve_gamma_vjp_from_dofs",
+    "curve_filament_pack_from_dofs",
     "curve_geometry_from_dofs",
     "curve_gammadash_vjp_from_dofs",
     "curve_gammadashdash_vjp_from_dofs",
@@ -397,6 +398,43 @@ def _filament_terms(frame, input_jets, dn, db) -> tuple[jax.Array, ...]:
     for _ in input_jets[1:]:
         terms = differentiated(terms)
     return terms(*input_jets)
+
+
+def curve_filament_pack_from_dofs(
+    spec: CurveFilamentSpec,
+    dofs,
+    offsets: tuple[tuple[float, float], ...],
+) -> tuple[jax.Array, ...]:
+    """Return the base curve and the filaments of a finite-build pack sharing ``spec``'s curve and frame.
+
+    Each filament is ``gamma + dn * normal + db * binormal`` for one
+    ``(dn, db)`` of ``offsets``; its tangent is the ``jax.jvp`` of that
+    expression along the base curve's parameter derivatives. The frame does
+    not depend on the offsets, so ``jax.vmap`` over them evaluates it once.
+
+    Args:
+        spec: CurveFilamentSpec object, base curve, DOF maps, rotation and frame convention of the pack.
+        dofs: Array of shape (ndofs,), filament full DOFs in the spec mapping order.
+        offsets: tuple of (dn, db) pairs in m, one per filament.
+
+    Returns:
+        tuple: (gamma, gammadash, gammadashdash) of the base curve, arrays of shape (nquadpoints, 3) in m, then the filaments' gamma and gammadash, arrays of shape (nfilaments, nquadpoints, 3) in m.
+    """
+    frame, input_jets = _curve_filament_input_jets(spec, dofs, 1)
+    # Both frames take (gamma, gammadash, ...) of the base curve, so the frame
+    # inputs start with gamma and their parameter derivatives with
+    # (gammadash, gammadashdash).
+    base_geometry = (input_jets[0][0], *input_jets[1][:2])
+    dn, db = (
+        _as_explicit_array(np.asarray(values, dtype=np.float64), reference=dofs)
+        for values in zip(*offsets, strict=True)
+    )
+    gammas, gammadashs = jax.vmap(
+        lambda filament_dn, filament_db: _filament_terms(
+            frame, input_jets, filament_dn, filament_db
+        )
+    )(dn, db)
+    return (*base_geometry, gammas, gammadashs)
 
 
 def _curve_filament_terms_from_dofs(spec: CurveFilamentSpec, dofs, order: int):
