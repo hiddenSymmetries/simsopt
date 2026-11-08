@@ -27,6 +27,8 @@
     "tests/field/test_biotsavart_jax_state_cache.py",
     "tests/field/test_coil_dof_extraction_segments.py",
     "tests/geo/test_curvexyzfouriersymmetries_spec_jax.py",
+    "tests/geo/test_native_jax_device.py",
+    "tests/geo/fresh_process",
     "tests/geo/test_orientedcurve_jax_spec.py",
     "tests/geo/test_curve_subclasses_parity.py",
     "tests/geo/test_curve_wrapper_specs_jax.py",
