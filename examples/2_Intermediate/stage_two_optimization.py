@@ -19,7 +19,8 @@ achieved as well. This example demonstrates the adjustment of weights and
 penalties via the use of the `Weight` class.
 
 The target equilibrium is the QA configuration of arXiv:2108.03711.
-Use --use-jax to select the optional JAX field; the native field is the default.
+Use --use-jax to select the optional JAX field and objective adapters; the native field is the default.
+Add --fused to evaluate their sum in one compiled JAX program.
 In CI the JAX path runs 10 iterations per stage; the native path runs 50.
 """
 
@@ -38,6 +39,15 @@ from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 from simsopt.util import in_github_actions
 
 try:
+    import jax
+    from simsopt_jax.backend.dtypes import as_jax_float64
+    from simsopt_jax.backend.jit import jit
+    from simsopt_jax.objectives import StageTwoObjectiveConfig, fused_stage_two_objective, make_stage_two_problem
+    from simsopt_jax_adapters.geo import (
+        JaxCurveCurveDistance, JaxCurveLength, JaxCurveSurfaceDistance,
+        JaxLpCurveCurvature, JaxMeanSquaredCurvature,
+    )
+    from simsopt_jax_adapters.objectives import JaxSquaredFlux
     from simsopt_jax.backend import set_backend
     from simsopt_jax_adapters.field import JaxBiotSavart
 except ImportError as error:
@@ -46,9 +56,12 @@ else:
     jax_import_error = None
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--use-jax", action="store_true", help="Use the optional JAX Biot-Savart field")
+parser.add_argument("--use-jax", action="store_true", help="Use the optional JAX field and objective adapters")
 parser.add_argument("--device", choices=("cpu", "gpu"), default="cpu")
+parser.add_argument("--fused", action="store_true", help="Compile the whole objective; requires --use-jax")
 args = parser.parse_args()
+if args.fused and not args.use_jax:
+    parser.error("--fused requires --use-jax")
 if args.use_jax:
     if jax_import_error is not None:
         parser.error(f"--use-jax requires Python >= 3.12 and jax/jaxlib >= 0.12: {jax_import_error}")
@@ -126,12 +139,21 @@ pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.uni
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the individual terms objective function:
-Jf = SquaredFlux(s, bs)
-Jls = [CurveLength(c) for c in base_curves]
-Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
-Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
-Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
-Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
+if args.use_jax:
+    Jf = JaxSquaredFlux(s, bs)
+    Jls = [JaxCurveLength(c) for c in base_curves]
+    Jccdist = JaxCurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
+    Jcsdist = JaxCurveSurfaceDistance(curves, s, CS_THRESHOLD)
+    Jcs = [JaxLpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
+    Jmscs = [JaxMeanSquaredCurvature(c) for c in base_curves]
+else:
+    Jf = SquaredFlux(s, bs)
+    Jls = [CurveLength(c) for c in base_curves]
+    Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
+    Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
+    Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
+    Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
+
 
 
 # Form the total objective function. To do this, we can exploit the
@@ -144,6 +166,43 @@ JF = Jf \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs)
 
+def stage_two_problem():
+    """Snapshot shared geometry and the current length weight for fused evaluation."""
+    return make_stage_two_problem(bs, Jf.fixed_surface_flux_spec(), StageTwoObjectiveConfig(
+        num_basecurves=ncoils,
+        length_weight=float(LENGTH_WEIGHT),
+        curve_curve_minimum_distance=CC_THRESHOLD,
+        curve_curve_weight=CC_WEIGHT,
+        curve_surface_minimum_distance=CS_THRESHOLD,
+        curve_surface_weight=CS_WEIGHT,
+        curvature_threshold=CURVATURE_THRESHOLD,
+        curvature_weight=CURVATURE_WEIGHT,
+        mean_squared_curvature_threshold=MSC_THRESHOLD,
+        mean_squared_curvature_weight=MSC_WEIGHT,
+    ))
+
+
+if args.fused:
+    problem = stage_two_problem()
+    value_and_grad = jit(jax.value_and_grad(fused_stage_two_objective, argnums=1))
+    # The fused kernel uses the field's DOF order; reporting uses the composite's.
+    field_order = np.array([JF.dof_names.index(name) for name in bs.dof_names])
+    objective_order = np.argsort(field_order)
+
+
+def fused_value_and_grad(dofs):
+    """Fused value and host gradient of JF at its DOFs, in JF's DOF order."""
+    # Explicit placement: also runs under SIMSOPT_JAX_TRANSFER_GUARD=disallow.
+    value, gradient = jax.device_get(value_and_grad(problem, as_jax_float64(dofs[field_order])))
+    return float(value), gradient[objective_order]
+
+
+if args.fused:
+    initial_value, initial_gradient = fused_value_and_grad(np.asarray(JF.x))
+    np.testing.assert_allclose(initial_value, JF.J(), rtol=1e-12, atol=1e-14)
+    np.testing.assert_allclose(initial_gradient, JF.dJ(), rtol=1e-11, atol=1e-13)
+
+
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
@@ -151,8 +210,11 @@ JF = Jf \
 
 def fun(dofs):
     JF.x = dofs
-    J = JF.J()
-    grad = JF.dJ()
+    if args.fused:
+        J, grad = fused_value_and_grad(dofs)
+    else:
+        J = JF.J()
+        grad = JF.dJ()
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
@@ -188,6 +250,8 @@ print("""
 ################################################################################
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+# The minimizer's last evaluation need not be at its result, so the outputs below use res.x.
+JF.x = res.x
 curves_to_vtk(curves, OUT_DIR + "curves_opt_short")
 pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
@@ -198,7 +262,10 @@ s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
 # result in slightly longer coils but smaller `B·n` on the surface.
 dofs = res.x
 LENGTH_WEIGHT *= 0.1
+if args.fused:
+    problem = stage_two_problem()
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+JF.x = res.x
 curves_to_vtk(curves, OUT_DIR + "curves_opt_long")
 pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
