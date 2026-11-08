@@ -37,6 +37,7 @@
     "tests/core/test_host_boundary_ssot_ratchet.py",
     "tests/core/test_pytree_convention.py",
     "tests/unittest_jax_support.py",
+    "examples/2_Intermediate/stage_two_optimization.py",
     "tests/field/test_stage_two_biotsavart_jax.py"
   ],
   "extraPaths": [
