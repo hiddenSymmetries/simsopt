@@ -1,3 +1,17 @@
 """Legacy geometry-object adapters for ``simsopt_jax``."""
 
-__all__ = ()
+from .curve_objectives import (
+    JaxCurveCurveDistance,
+    JaxCurveLength,
+    JaxCurveSurfaceDistance,
+    JaxLpCurveCurvature,
+    JaxMeanSquaredCurvature,
+)
+
+__all__ = (
+    "JaxCurveCurveDistance",
+    "JaxCurveLength",
+    "JaxCurveSurfaceDistance",
+    "JaxLpCurveCurvature",
+    "JaxMeanSquaredCurvature",
+)

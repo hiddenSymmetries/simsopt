@@ -38,7 +38,8 @@
     "tests/core/test_pytree_convention.py",
     "tests/unittest_jax_support.py",
     "examples/2_Intermediate/stage_two_optimization.py",
-    "tests/field/test_stage_two_biotsavart_jax.py"
+    "tests/field/test_stage_two_biotsavart_jax.py",
+    "tests/geo/test_curve_objectives_jax.py"
   ],
   "extraPaths": [
     "src",
