@@ -67,6 +67,8 @@ __all__ = [
     "make_optimizable_dof_map_spec",
     "make_zero_rotation_spec",
     "host_resident_spec",
+    "FixedSurfaceFluxSpec",
+    "make_fixed_surface_flux_spec",
 ]
 
 
@@ -1268,3 +1270,60 @@ def make_grouped_coil_set_spec(
             make_coil_group_spec(gammas, gammadashs, currents, coil_indices)
         )
     return GroupedCoilSetSpec(groups=tuple(group_specs))
+
+
+@pytree_dataclass(
+    data=("points", "normal", "target"),
+    meta=("definition", "nphi", "ntheta"),
+)
+class FixedSurfaceFluxSpec:
+    """Immutable fixed-surface flux operands; arrays are pytree leaves.
+
+    The grid dimensions and definition are static metadata.
+
+    Args:
+        points: Array of shape (nphi*ntheta, 3), flattened surface positions in m.
+        normal: Array of shape (nphi, ntheta, 3), unnormalized surface normals in m^2.
+        target: Array of shape (nphi, ntheta), target normal field in T; an empty array means zero.
+        definition: str, "quadratic flux", "normalized", or "local".
+        nphi: int, number of toroidal quadrature points.
+        ntheta: int, number of poloidal quadrature points.
+    """
+
+    points: jax.Array
+    normal: jax.Array
+    target: jax.Array
+    definition: str
+    nphi: int
+    ntheta: int
+
+
+def make_fixed_surface_flux_spec(
+    *,
+    points: object,
+    normal: object,
+    target: object,
+    definition: str,
+) -> FixedSurfaceFluxSpec:
+    """Snapshot fixed-surface operands as float64 arrays on the active device.
+
+    Grid dimensions are inferred from normal.shape.
+
+    Args:
+        points: Array of shape (nphi*ntheta, 3), flattened surface positions in m.
+        normal: Array of shape (nphi, ntheta, 3), unnormalized surface normals in m^2.
+        target: Array of shape (nphi, ntheta), target normal field in T; an empty array means zero.
+        definition: str, "quadratic flux", "normalized", or "local".
+
+    Returns:
+        FixedSurfaceFluxSpec object: immutable device operands and grid metadata.
+    """
+    normal_jax = _as_float64_array(normal)
+    return FixedSurfaceFluxSpec(
+        points=_as_float64_array(points),
+        normal=normal_jax,
+        target=_as_float64_array(target),
+        definition=definition,
+        nphi=int(normal_jax.shape[0]),
+        ntheta=int(normal_jax.shape[1]),
+    )
