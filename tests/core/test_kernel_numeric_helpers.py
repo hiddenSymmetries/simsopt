@@ -11,6 +11,7 @@ with optional_jax_imports():
     from simsopt_jax.backend.jit import jit
     from simsopt_jax.core.biotsavart import (
         _radius_squared,
+        _separation,
         biot_savart_A,
         biot_savart_B,
         biot_savart_dB_by_dX,
@@ -45,6 +46,18 @@ class TestKernelNumericHelpers(JaxTestCase):
             not np.all(np.isfinite(np.asarray(gradient))),
             "not np.all(np.isfinite(np.asarray(gradient)))",
         )
+
+    def test_separation_preserves_zero_singularity(self):
+        """The component-major separation is exact: a coincident point gives zero
+        components and an exactly zero squared radius."""
+        x = jnp.asarray([0.25, -0.5, 1.0], dtype=jnp.float64)
+        gammas = jnp.reshape(x, (1, 1, 3))
+
+        components, radius_squared = _separation(x, gammas)
+
+        for component in components:
+            np.testing.assert_array_equal(np.asarray(component), np.zeros((1, 1)))
+        np.testing.assert_array_equal(np.asarray(radius_squared), np.zeros((1, 1)))
 
     def test_biot_savart_public_kernels_preserve_point_singularity(self):
         """Public vector-potential, field and field-gradient kernels retain filament

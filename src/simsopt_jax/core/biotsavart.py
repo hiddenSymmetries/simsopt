@@ -27,7 +27,6 @@ from ._device_scalars import device_one as _device_one
 from ._math_utils import (
     as_jax_float64 as _as_jax_float64,
     axis0_entries as _axis0_entries,
-    scalar_like as _scalar_like,
     zeros as _zeros,
 )
 from .reductions import pairwise_sum_axis as _pairwise_sum_axis
@@ -64,31 +63,18 @@ def _read_tuning_config() -> tuple:
 # ── Array slicing primitives ──────────────────────────────────────────
 
 
-def _slice_coil_chunk(array, start, chunk_size: int):
+def _slice_block(array, axis: int, start, size: int):
+    """Return ``size`` entries of ``array`` along ``axis`` from ``start`` on."""
     zero = _as_int32_scalar(0)
     return lax.dynamic_slice(
         array,
-        (_as_int32_scalar(start),) + (zero,) * (array.ndim - 1),
-        (chunk_size,) + tuple(array.shape[1:]),
-    )
-
-
-def _slice_quadrature_block(array, start, block_size: int):
-    zero = _as_int32_scalar(0)
-    return lax.dynamic_slice(
-        array,
-        (zero, _as_int32_scalar(start)) + (zero,) * (array.ndim - 2),
-        (array.shape[0], block_size) + tuple(array.shape[2:]),
+        (zero,) * axis + (_as_int32_scalar(start),) + (zero,) * (array.ndim - axis - 1),
+        array.shape[:axis] + (size,) + array.shape[axis + 1 :],
     )
 
 
 def _slice_point_chunk(points, start, chunk_size: int):
-    zero = _as_int32_scalar(0)
-    return lax.dynamic_slice(
-        points,
-        (_as_int32_scalar(start),) + (zero,) * (points.ndim - 1),
-        (chunk_size,) + tuple(points.shape[1:]),
-    )
+    return _slice_block(points, 0, start, chunk_size)
 
 
 def _float64_scalar(reference, value):
@@ -105,21 +91,24 @@ def _radius_squared(diff):
     return jnp.sum(diff * diff, axis=-1)
 
 
-def _cross_product(left, right):
-    left_x = left[..., 0]
-    left_y = left[..., 1]
-    left_z = left[..., 2]
-    right_x = right[..., 0]
-    right_y = right[..., 1]
-    right_z = right[..., 2]
-    return jnp.stack(
-        (
-            left_y * right_z - left_z * right_y,
-            left_z * right_x - left_x * right_z,
-            left_x * right_y - left_y * right_x,
-        ),
-        axis=-1,
+def _components(vectors):
+    """Return the x, y and z components of ``vectors``, shape (..., 3)."""
+    return vectors[..., 0], vectors[..., 1], vectors[..., 2]
+
+
+def _cross_components(left, right):
+    """Return the components of ``left x right`` from component tuples."""
+    left_x, left_y, left_z = left
+    right_x, right_y, right_z = right
+    return (
+        left_y * right_z - left_z * right_y,
+        left_z * right_x - left_x * right_z,
+        left_x * right_y - left_y * right_x,
     )
+
+
+def _cross_product(left, right):
+    return jnp.stack(_cross_components(_components(left), _components(right)), axis=-1)
 
 
 # ── Tree utilities ────────────────────────────────────────────────────
@@ -156,145 +145,88 @@ def _tree_add(left, right):
 # ── Tiling primitives ────────────────────────────────────────────────
 
 
-def _two_chunk_sum(first_chunk, second_chunk, reduce_chunk):
-    return _tree_add(reduce_chunk(*first_chunk), reduce_chunk(*second_chunk))
+def _block_sum(arrays, *, axis: int, block_size: int, zero, reduce_block):
+    """Add ``reduce_block(*blocks)`` over blocks of ``arrays`` along ``axis``.
 
-
-def _coil_chunk_reduce(
-    gammas,
-    gammadashs,
-    currents,
-    *,
-    chunk_size: int,
-    zero,
-    reduce_chunk,
-):
-    """Reduce coil chunks assuming a concrete leading coil dimension.
-
-    This helper is only safe on call paths where ``currents.shape[0]`` is known
-    at trace time. The surrounding kernel builders satisfy that contract by
-    specializing each JIT closure to a fixed grouped-coil layout before calling
-    into this reducer.
+    One block when ``block_size`` is nonpositive or covers the axis; an exact
+    two-block split, which avoids loop overhead in the B and B+dB hot paths;
+    otherwise a loop over the full blocks from ``zero``, then the tail. The
+    three paths sum in different orders: keep the block-boundary tests pinned
+    when changing this routine.
     """
-    coil_count = currents.shape[0]
-    if coil_count == 0:
-        return zero
-    if chunk_size <= 0 or coil_count <= chunk_size:
-        return reduce_chunk(gammas, gammadashs, currents)
-
-    chunk_count = (coil_count + chunk_size - 1) // chunk_size
-    if chunk_count == 2:
-        # Exact two-chunk shapes avoid padded loop overhead in B/B+dB hot paths.
-        second_chunk_size = coil_count - chunk_size
-        return _two_chunk_sum(
-            (
-                _slice_coil_chunk(gammas, 0, chunk_size),
-                _slice_coil_chunk(gammadashs, 0, chunk_size),
-                _slice_coil_chunk(currents, 0, chunk_size),
-            ),
-            (
-                _slice_coil_chunk(gammas, chunk_size, second_chunk_size),
-                _slice_coil_chunk(gammadashs, chunk_size, second_chunk_size),
-                _slice_coil_chunk(currents, chunk_size, second_chunk_size),
-            ),
-            reduce_chunk,
+    count = arrays[0].shape[axis]
+    if block_size <= 0 or count <= block_size:
+        return reduce_block(*arrays)
+    if count <= 2 * block_size:
+        first = tuple(_slice_block(a, axis, 0, block_size) for a in arrays)
+        second = tuple(
+            _slice_block(a, axis, block_size, count - block_size) for a in arrays
         )
+        return _tree_add(reduce_block(*first), reduce_block(*second))
 
-    full_chunk_count, tail_size = divmod(coil_count, chunk_size)
-
-    # Keep the outer coil accumulation serial until parity data implicates it;
-    # the quadrature-axis sum dominates the known reduction-order drift, while
-    # tree-reducing chunk outputs would add another staged hot-path combine.
-    def body(chunk_index: int, acc):
-        start = chunk_index * chunk_size
-        chunk_gammas = _slice_coil_chunk(gammas, start, chunk_size)
-        chunk_gammadashs = _slice_coil_chunk(gammadashs, start, chunk_size)
-        chunk_currents = _slice_coil_chunk(currents, start, chunk_size)
-        return _tree_add(
-            acc,
-            reduce_chunk(chunk_gammas, chunk_gammadashs, chunk_currents),
-        )
-
-    reduced = lax.fori_loop(0, full_chunk_count, body, zero)
-    if tail_size:
-        tail_start = full_chunk_count * chunk_size
-        reduced = _tree_add(
-            reduced,
-            reduce_chunk(
-                gammas[tail_start:],
-                gammadashs[tail_start:],
-                currents[tail_start:],
-            ),
-        )
-    return reduced
-
-
-def _quadrature_block_integral(
-    x,
-    gammas,
-    gammadashs,
-    *,
-    block_size: int,
-    integrand,
-):
-    quadrature_count = gammas.shape[1]
-    # The single-block, exact two-block, and full-block-plus-tail >=3 paths use
-    # different quadrature reduction-tree shapes. Keep parity tests pinned
-    # across block boundaries when changing this routine.
-    if block_size <= 0 or quadrature_count <= block_size:
-        values = integrand(x, gammas, gammadashs)
-        return _pairwise_sum_axis(values, axis=1) * _scalar_like(
-            values,
-            1.0 / values.shape[1],
-        )
-
-    block_count = (quadrature_count + block_size - 1) // block_size
-    if block_count == 2:
-        # Exact two-block shapes avoid padded loop overhead in B/B+dB hot paths.
-        second_block_size = quadrature_count - block_size
-        return (
-            _two_chunk_sum(
-                (
-                    _slice_quadrature_block(gammas, 0, block_size),
-                    _slice_quadrature_block(gammadashs, 0, block_size),
-                ),
-                (
-                    _slice_quadrature_block(gammas, block_size, second_block_size),
-                    _slice_quadrature_block(
-                        gammadashs,
-                        block_size,
-                        second_block_size,
-                    ),
-                ),
-                lambda gg, ggd: _pairwise_sum_axis(integrand(x, gg, ggd), axis=1),
-            )
-            / quadrature_count
-        )
-
-    full_block_count, tail_size = divmod(quadrature_count, block_size)
-    zero = _zeros((gammas.shape[0], 3), dtype=jnp.float64)
+    full_block_count, tail_size = divmod(count, block_size)
 
     def body(block_index: int, acc):
         start = block_index * block_size
-        block_gammas = _slice_quadrature_block(gammas, start, block_size)
-        block_gammadashs = _slice_quadrature_block(
-            gammadashs,
-            start,
-            block_size,
-        )
-        block_integrand = integrand(x, block_gammas, block_gammadashs)
-        return acc + _pairwise_sum_axis(block_integrand, axis=1)
+        block = (_slice_block(a, axis, start, block_size) for a in arrays)
+        return _tree_add(acc, reduce_block(*block))
 
-    integral_sum = lax.fori_loop(0, full_block_count, body, zero)
+    total = lax.fori_loop(0, full_block_count, body, zero)
     if tail_size:
-        tail_start = full_block_count * block_size
-        tail_integrand = integrand(
-            x,
-            gammas[:, tail_start:],
-            gammadashs[:, tail_start:],
+        tail = (slice(None),) * axis + (slice(full_block_count * block_size, None),)
+        total = _tree_add(total, reduce_block(*(a[tail] for a in arrays)))
+    return total
+
+
+def _coil_chunk_reduce(
+    gammas, gammadashs, currents, *, chunk_size: int, zero, reduce_chunk
+):
+    """Add ``reduce_chunk`` over coil chunks; needs a concrete coil count.
+
+    The coil count is the shared leading axis of ``gammas``, ``gammadashs`` and
+    ``currents``. The kernel builders specialize each JIT closure to a fixed
+    grouped-coil layout, so it is known at trace time. The coil chunks
+    are added serially: the quadrature sum dominates the known reduction-order
+    drift, and a tree over chunk outputs would add a staged hot-path combine.
+    """
+    if currents.shape[0] == 0:
+        return zero
+    return _block_sum(
+        (gammas, gammadashs, currents),
+        axis=0,
+        block_size=chunk_size,
+        zero=zero,
+        reduce_block=reduce_chunk,
+    )
+
+
+def _quadrature_block_sum(
+    x, gammas, gammadashs, currents, *, block_size: int, integrand
+):
+    """Return ``sum_c currents[c] sum_q integrand[c, q]`` for x, y and z."""
+
+    def block_sum(block_gammas, block_gammadashs):
+        # Contract each block's per-coil sums with the currents before any stack,
+        # block add or 1/Q scale; otherwise XLA fuses them with the reduce (A100,
+        # dB/dX: the reduce moves into the stack's concatenate fusion; XLA:CPU:
+        # the add or scale becomes its epilogue, about 2x slower).
+        return tuple(
+            jnp.einsum(
+                "c,c->",
+                currents,
+                _pairwise_sum_axis(component, axis=1),
+                precision=lax.Precision.HIGHEST,
+            )
+            for component in integrand(x, block_gammas, block_gammadashs)
         )
-        integral_sum = integral_sum + _pairwise_sum_axis(tail_integrand, axis=1)
-    return integral_sum / quadrature_count
+
+    return _block_sum(
+        (gammas, gammadashs),
+        axis=1,
+        block_size=block_size,
+        zero=(_zeros((), dtype=jnp.float64),) * 3,
+        reduce_block=block_sum,
+    )
 
 
 # The Hessian integrand carries 27 doubles per (point, quadrature node) where
@@ -365,21 +297,38 @@ def _point_chunk_reduce(points, chunk_kernel, chunk_size):
 
 # ── Physics integrands ────────────────────────────────────────────────
 
+# The B and A integrands are component-major: three (C, Qb) arrays, no length-3
+# axis. Since jaxlib 0.10.1, XLA's GPU layout assignment can make that axis the
+# minor dimension of a per-coil reduction that sums another axis, which runs
+# several times slower (openxla/xla#52437).
+
+
+def _separation(x, gammas):
+    """Return the components of ``gammas - x`` and its exact squared length.
+
+    ``r2`` is exact, so point-on-coil singularities stay loud. ``x`` has shape
+    (3,) and ``gammas`` (C, Qb, 3); every returned array has shape (C, Qb).
+    """
+    dx, dy, dz = (
+        gamma - point for gamma, point in zip(_components(gammas), _components(x))
+    )
+    return (dx, dy, dz), dx * dx + dy * dy + dz * dz
+
 
 def _biot_savart_B_integrand(x, gammas, gammadashs):
-    diff = gammas - x
-    r2 = _radius_squared(diff)
+    diff, r2 = _separation(x, gammas)
     r_inv = lax.rsqrt(r2)
     r_inv3 = r_inv * jnp.reciprocal(r2)
-    cross = _cross_product(diff, gammadashs)
-    return cross * r_inv3[..., None]
+    return tuple(
+        component * r_inv3
+        for component in _cross_components(diff, _components(gammadashs))
+    )
 
 
 def _biot_savart_A_integrand(x, gammas, gammadashs):
-    diff = gammas - x
-    r2 = _radius_squared(diff)
+    _, r2 = _separation(x, gammas)
     r_inv = lax.rsqrt(r2)
-    return gammadashs * r_inv[..., None]
+    return tuple(tangent * r_inv for tangent in _components(gammadashs))
 
 
 def _biot_savart_B_and_dB_integrand(x, gammas, gammadashs):
@@ -431,19 +380,25 @@ _INTEGRANDS = {
 def _one_point_dense(
     x, gammas, gammadashs, currents, *, integrand, quadrature_block_size=0
 ):
-    integral = _quadrature_block_integral(
+    # Stack, block add and 1/Q scale act on contracted sums; see _quadrature_block_sum.
+    weighted_sum = _quadrature_block_sum(
         x,
         gammas,
         gammadashs,
+        currents,
         block_size=quadrature_block_size,
         integrand=integrand,
     )
-    return _float64_scalar(currents, _MU0_OVER_4PI) * jnp.einsum(
-        "c,cj->j", currents, integral, precision=lax.Precision.HIGHEST
+    return _float64_scalar(currents, _MU0_OVER_4PI / gammas.shape[1]) * jnp.stack(
+        weighted_sum
     )
 
 
 def _quadrature_block_B_and_dB_integral(x, gammas, gammadashs, *, block_size: int):
+    # _block_sum's three paths, written out: its two-block split slices both
+    # blocks before reducing either, which would change this kernel's program.
+    # This fused kernel also still adds the blocks and applies 1/Q before
+    # contracting with the currents.
     quadrature_count = gammas.shape[1]
 
     def reduce_values(block_gammas, block_gammadashs):
@@ -462,12 +417,12 @@ def _quadrature_block_B_and_dB_integral(x, gammas, gammadashs, *, block_size: in
     if block_count == 2:
         second_block_size = quadrature_count - block_size
         first = reduce_values(
-            _slice_quadrature_block(gammas, 0, block_size),
-            _slice_quadrature_block(gammadashs, 0, block_size),
+            _slice_block(gammas, 1, 0, block_size),
+            _slice_block(gammadashs, 1, 0, block_size),
         )
         second = reduce_values(
-            _slice_quadrature_block(gammas, block_size, second_block_size),
-            _slice_quadrature_block(gammadashs, block_size, second_block_size),
+            _slice_block(gammas, 1, block_size, second_block_size),
+            _slice_block(gammadashs, 1, block_size, second_block_size),
         )
         return average_sum(_tree_add(first, second))
 
@@ -479,12 +434,8 @@ def _quadrature_block_B_and_dB_integral(x, gammas, gammadashs, *, block_size: in
 
     def body(block_index: int, acc):
         start = block_index * block_size
-        block_gammas = _slice_quadrature_block(gammas, start, block_size)
-        block_gammadashs = _slice_quadrature_block(
-            gammadashs,
-            start,
-            block_size,
-        )
+        block_gammas = _slice_block(gammas, 1, start, block_size)
+        block_gammadashs = _slice_block(gammadashs, 1, start, block_size)
         return _tree_add(acc, reduce_values(block_gammas, block_gammadashs))
 
     integral_sum = lax.fori_loop(0, full_block_count, body, zero)
@@ -492,10 +443,7 @@ def _quadrature_block_B_and_dB_integral(x, gammas, gammadashs, *, block_size: in
         tail_start = full_block_count * block_size
         integral_sum = _tree_add(
             integral_sum,
-            reduce_values(
-                gammas[:, tail_start:],
-                gammadashs[:, tail_start:],
-            ),
+            reduce_values(gammas[:, tail_start:], gammadashs[:, tail_start:]),
         )
     return average_sum(integral_sum)
 

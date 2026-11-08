@@ -321,6 +321,54 @@ class TestBiotSavartJaxCppParity(JaxTestCase):
             grad_abs_B = bs_jax.GradAbsB()
         np.testing.assert_array_equal(np.asarray(grad_abs_B), native.GradAbsB())
 
+    def test_per_current_derivatives_run_under_strict_transfer_guard(self):
+        """Every per-coil unit-current accessor builds its unit current and its
+        per-coil rows on device, so it runs under the strict guard at native
+        values, unchunked and in coil chunks."""
+        for chunk_size in (0, 7):
+            with self.subTest(chunk_size=chunk_size), self.case() as patches:
+                patches.enter_context(
+                    mock.patch.dict(
+                        os.environ, {"SIMSOPT_JAX_COIL_CHUNK_SIZE": str(chunk_size)}
+                    )
+                )
+                invalidate_backend_cache()
+                self.assertEqual(get_field_kernel_tuning().coil_chunk_size, chunk_size)
+                self._case_per_current_derivatives_run_under_strict_transfer_guard()
+
+    def _case_per_current_derivatives_run_under_strict_transfer_guard(self):
+        """Run one row with case-local objects released before runtime cleanup."""
+        bs, points_np, _, _, _ = _ncsx_biotsavart_parity_fixture()
+        bs_jax = JaxBiotSavart(list(bs._coils))
+        bs_jax.set_points(points_np)
+        direct = (_DIRECT_KERNEL_TOLS["rtol"], _DIRECT_KERNEL_TOLS["atol"])
+        first = (
+            _DERIVATIVE_HEAVY_TOLS["first_derivative_rtol"],
+            _DERIVATIVE_HEAVY_TOLS["first_derivative_atol"],
+        )
+        second = (
+            _DERIVATIVE_HEAVY_TOLS["second_derivative_rtol"],
+            _DERIVATIVE_HEAVY_TOLS["second_derivative_atol"],
+        )
+        for cache_method, list_method, tols in (
+            ("B", "dB_by_dcoilcurrents", direct),
+            ("dB_by_dX", "d2B_by_dXdcoilcurrents", first),
+            ("d2B_by_dXdX", "d3B_by_dXdXdcoilcurrents", second),
+            ("A", "dA_by_dcoilcurrents", direct),
+            ("dA_by_dX", "d2A_by_dXdcoilcurrents", first),
+            ("d2A_by_dXdX", "d3A_by_dXdXdcoilcurrents", second),
+        ):
+            getattr(bs, cache_method)()
+            with disallow_host_transfers():
+                jax_list = getattr(bs_jax, list_method)()
+            cpu_list = getattr(bs, list_method)()
+            self.assertEqual(len(jax_list), len(cpu_list))
+            for k, (j_entry, c_entry) in enumerate(zip(jax_list, cpu_list)):
+                np.testing.assert_allclose(
+                    np.asarray(j_entry), c_entry, rtol=tols[0], atol=tols[1],
+                    err_msg=f"{list_method} coil {k}",
+                )
+
     def test_B_vjp_parity_ncsx(self):
         """Native Biot-Savart parity on identical coils, points and cotangents."""
 
@@ -535,7 +583,10 @@ class TestFusedBAndDBAutodiffReference(JaxTestCase):
         }
 
         def B_integrand(x):
-            return core_biotsavart._biot_savart_B_integrand(x, gammas, gammadashs)
+            return jnp.stack(
+                core_biotsavart._biot_savart_B_integrand(x, gammas, gammadashs),
+                axis=-1,
+            )
 
         def autodiff_integrand(x):
             # jacfwd yields [..., component, direction]; the fused integrand
