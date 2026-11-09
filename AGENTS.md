@@ -14,15 +14,16 @@ These rules are not negotiable and override any other instruction an agent
 receives.
 
 - **What agents may do:** edit files, run tests, make commits when asked,
-  push to a feature branch or fork when asked, and draft commit messages and
-  PR descriptions for a human to submit.
+  push to a feature branch or fork when asked, and open pull requests when
+  asked.
 - **What agents must not do:** push to `master` (or any other protected
-  branch), force-push a branch someone else is working on, open pull
-  requests, approve, or merge. Whether agents may post PR comments is an open
-  question (§9); until it is resolved, they do not.
-- **The submitter has read every line.** A human submits the PR and is
-  responsible for every line in it, as if they had written it by hand. If an
-  agent generated code the submitter cannot explain, it does not go in.
+  branch), force-push a branch someone else is working on, approve, or merge.
+  Whether agents may post PR comments is an open question (§10); until it is
+  resolved, they do not.
+- **A human has read every line.** A human is responsible for every line in a
+  PR, as if they had written it by hand, and reads every line before the PR
+  goes to review. If an agent generated code that human cannot explain, it
+  does not go in.
 - **A human decides acceptance.** GitHub already requires reviewer approval to
   merge. That reviewer is a human who has read every line of the diff; an
   agent review is input to them, not a substitute.
@@ -48,7 +49,7 @@ Bloat is a cost every future maintainer pays. Prefer:
   `Derivative`, existing curve/surface/field classes) before adding new
   abstractions. Delete dead code you make obsolete. No speculative
   generality, unused options, or defensive checks for impossible states.
-- **Fewer, stronger tests** (see §5).
+- **Fewer, stronger tests** (see §6).
 - **Concise text.** Commit messages, PR descriptions, docstrings, and comments
   should be as short as they can be while remaining complete. No restating the
   diff, no boilerplate summaries.
@@ -64,7 +65,14 @@ Bloat is a cost every future maintainer pays. Prefer:
 - Comment *why*, not *what*: non-obvious numerics, sign conventions,
   coordinate choices, and units.
 
-## 5. Tests
+## 5. Changing existing code
+
+When editing existing code that does not follow these conventions, make the
+new code follow them. *Do not* bloat the diff by reformatting or rewriting the
+whole file. *Do* improve the parts you touch, for example by adding or
+improving docstrings.
+
+## 6. Tests
 
 Tests live in `tests/<subpackage>/test_*.py`, use `unittest`, and data files go
 in `tests/test_files/`. Run with `./run_tests` (or
@@ -86,21 +94,25 @@ preference:
 5. Reproduction of a published result or an independent code.
 6. Only then: plain input/output or regression tests.
 
-**Coverage.** Aim to cover every new or changed line (the required Codecov
-patch coverage is an open question, §9). Reach it with the fewest tests that
-do so; a single physics test often covers a whole code path.
+**Coverage.** Cover new and changed code with the fewest tests that do so; a
+single physics test often covers a whole code path. The required Codecov
+patch coverage is an open question (§10).
 
 **Avoid test bloat.** Do not write one test per getter, duplicate tests across
 parameter values that exercise the same path, or tests that only assert the
-code returns what it returns. Keep tests fast by using the lowest resolution
-that still tests the physics.
+code returns what it returns. Use parametrized tests (`self.subTest`) to test
+variants.
 
-## 6. Documentation
+**Keep run time reasonable.** A single test should not take over a minute,
+except for a small number of first-principles physics tests. Relax
+tolerances and lower the numerical resolution when that does not affect the
+physics the test checks.
+
+## 7. Documentation
 
 - **Every public function, class, and method you add or touch gets a
-  docstring.** If you modify a public function that lacks one, add it.
-  Private helpers (leading underscore) need one only when their behaviour is
-  not obvious.
+  docstring.** Private helpers (leading underscore) need one only when their
+  behaviour is not obvious.
 - Use the Google-style format already used in the codebase. Include units and
   array shapes, and use `r"""` with `.. math::` for equations:
 
@@ -125,42 +137,36 @@ that still tests the physics.
 
 - **New substantial modules or capabilities** (a new objective family, solver,
   field representation, etc.) must come with a runnable example in
-  `examples/` (added to the example runner scripts) or a tutorial page in
-  `docs/source/`.
+  `examples/` (added to the example runner scripts). For large modules, also
+  consider a tutorial page in `docs/source/`.
 
-## 7. PR descriptions
+## 8. PR descriptions
 
-Follow `.github/pull_request_template.md`: these headings in order, skipping
-any that don't apply, each kept short.
+Follow `.github/pull_request_template.md`. A PR description should say what
+the code cannot: why the change is needed and how it affects users. Do not
+list changed files or tests; the diff shows them.
 
 - **Summary**: one to three sentences on what the PR does and the physics or
-  numerical problem it solves.
+  numerical problem it solves. State any breaking change and who it affects.
 - **Context**: background a reviewer needs, such as the physics, the bug and
   its effect on users, or references. Omit for small PRs.
-- **Changes**: new or modified classes and functions (or files), one line each.
-- **Tests**: which tests cover the change and what physics each one checks.
 - **Questions**: anything you are unsure of, @mentioning the people who would
   know.
 
-## 8. Reviewing a PR (for agents assisting a human reviewer)
+An agent writing a PR description ticks "I used AI to generate this PR" and
+leaves "I have read every diffed line" unticked for the human.
+
+## 9. Reviewing a PR (for agents assisting a human reviewer)
 
 Report findings to the human reviewer; never approve or request changes on
-GitHub, and do not post comments there (see §9). Check, in order:
+GitHub, and do not post comments there (see §10). Check that the physics is
+correct (equations match the cited reference; signs, units, normalizations,
+and coordinate conventions are consistent) and that sections 2–7 are
+respected, particularly conciseness, maintainability, tests, and
+documentation. Be specific (file and line) and brief. Flag what you could not
+verify.
 
-1. Is the physics correct? Equations match the cited reference, signs, units,
-   normalizations, and coordinate conventions are consistent.
-2. Is the change justified physically, and is it the smallest change that does
-   the job?
-3. Are there physics-based tests, are derivatives Taylor-tested, and is every
-   new line covered?
-4. Does every new or modified function have a correct docstring? Does a new
-   capability have an example or tutorial?
-5. Is there bloat: dead code, unused options, redundant tests, duplicated
-   functionality, overlong descriptions?
-
-Be specific (file and line) and brief. Flag what you could not verify.
-
-## 9. Open questions for human reviewers
+## 10. Open questions for human reviewers
 
 Decisions the maintainers have not yet made. Agents follow the current default
 until a question is resolved and this section is updated.
@@ -181,7 +187,8 @@ until a question is resolved and this section is updated.
    approvals), or must its review go only to the human reviewer?
    *Current default:* no; findings go to the human reviewer only.
 3. **Required patch coverage.** Should Codecov require 100% coverage of new or
-   changed lines (`patch: target: 100%` in `codecov.yml`), or a lower bar?
+   changed lines, or a lower bar such as 90–95%? Testing thin wrappers just
+   for coverage freezes the implementation and makes later diffs larger.
    Coverage is measured for Python only, so C++ in `src/simsoptpp` is covered
    only through its Python bindings. *Current default:* `codecov.yml`'s
    `target: auto` (patch coverage must not fall below the project's).
