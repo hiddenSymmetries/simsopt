@@ -633,9 +633,9 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                     double theta  = 2*M_PI*quadpoints_theta[k2];
                     cache_enforcer(k1, k2) = pow(sin(nfp*phi/2), 2) + pow(sin(theta/2), 2);
                     cache_enforcer_dphi(k1, k2) = nfp*cos(nfp*phi/2)*sin(nfp*phi/2);
-                    cache_enforcer_dphidphi(k1, k2) = nfp*(nfp/2)*(pow(cos(nfp*phi/2),2) - pow(sin(nfp*phi/2),2));
+                    cache_enforcer_dphidphi(k1, k2) = 0.5*nfp*nfp*(pow(cos(nfp*phi/2),2) - pow(sin(nfp*phi/2),2));
                     cache_enforcer_dtheta(k1, k2) = cos(theta/2)*sin(theta/2);
-                    cache_enforcer_dthetadtheta(k1, k2) = (1/2)*(pow(cos(theta/2),2) - pow(sin(theta/2),2));
+                    cache_enforcer_dthetadtheta(k1, k2) = 0.5*(pow(cos(theta/2),2) - pow(sin(theta/2),2));
                 }
             }
 
@@ -661,7 +661,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
 
         inline double bc_enforcer_dphidphi_fun(int dim, int n, double phi, int m, double theta){
             if(apply_bc_enforcer(dim, n, m))
-                return (nfp*nfp/2)*(pow(cos(nfp*phi/2),2) - pow(sin(nfp*phi/2),2));
+                return 0.5*nfp*nfp*(pow(cos(nfp*phi/2),2) - pow(sin(nfp*phi/2),2));
             else
                 return 0;
         }
@@ -675,7 +675,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
 
         inline double bc_enforcer_dthetadtheta_fun(int dim, int n, double phi, int m, double theta){
             if(apply_bc_enforcer(dim, n, m))
-                return (1/2)*(pow(cos(theta/2),2) - pow(sin(theta/2),2));
+                return 0.5*(pow(cos(theta/2),2) - pow(sin(theta/2),2));
             else
                 return 0;
         }
