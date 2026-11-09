@@ -740,6 +740,49 @@ class BoozerSurfaceTests(unittest.TestCase):
                 np.testing.assert_array_equal(boozer_surface.biotsavart.get_points_cart(),
                                               boozer_surface.surface.gamma().reshape((-1, 3)))
 
+    def test_penalty_newton_divergence_factor(self):
+        """
+        The penalty Newton solve stops once the gradient norm exceeds
+        divergence_factor times its starting value, and not before. By
+        default it does not stop early.
+        """
+        _, boozer_surface = get_boozer_surface(boozer_type="ls", converge=False)
+        dofs = boozer_surface.surface.get_dofs()
+
+        def exploding(x, derivatives=2, **kwargs):
+            # Each Newton step multiplies x, and so the gradient norm, by -19.
+            return 0.5 * x @ x, x, 0.05 * np.eye(x.size)
+
+        for options, iterations in [({'divergence_factor': 1e3}, 3), ({'divergence_factor': None}, 40), ({}, 40)]:
+            with self.subTest(**options):
+                boozer_surface.surface.set_dofs(dofs)
+                boozer_surface.need_to_run_code = True
+                with mock.patch.object(boozer_surface, 'boozer_penalty_constraints_vectorized', side_effect=exploding):
+                    res = boozer_surface.minimize_boozer_penalty_constraints_newton(
+                        tol=1e-14, maxiter=40, iota=-0.406, G=-2.0, **options)
+                self.assertEqual(res['iter'], iterations)
+                self.assertFalse(res['success'])
+                np.testing.assert_array_equal(boozer_surface.surface.get_dofs(), dofs)
+                self.assertEqual(res['iota'], -0.406)
+                self.assertEqual(res['G'], -2.0)
+
+        def nonmonotone(x, derivatives=2, **kwargs):
+            # The gradient norm drops to 1e-3 and then rises to 1 before
+            # converging, within a factor 1e3 of its starting value.
+            g = np.zeros_like(x)
+            g[0] = -1. if x[0] < 0.5 else -0.001 if x[0] < 1.0005 else -(2. - x[0]) if x[0] < 1.5 else 0.
+            return 0.5 * g[0]**2, g, np.eye(x.size)
+
+        dofs0 = dofs.copy()
+        dofs0[0] = 0.
+        boozer_surface.surface.set_dofs(dofs0)
+        boozer_surface.need_to_run_code = True
+        with mock.patch.object(boozer_surface, 'boozer_penalty_constraints_vectorized', side_effect=nonmonotone):
+            res = boozer_surface.minimize_boozer_penalty_constraints_newton(maxiter=10, iota=-0.406, G=-2.0)
+        self.assertTrue(res['success'])
+        self.assertEqual(res['iter'], 3)
+
+
     def test_boozer_surface_quadpoints(self):
         """ 
         this unit test checks that the quadpoints mask for stellarator symmetric Boozer Surfaces are correctly initialized

@@ -476,7 +476,7 @@ class BoozerSurface(Optimizable):
 
         return resdict
 
-    def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0., weight_inv_modB=True, verbose=False):
+    def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0., weight_inv_modB=True, verbose=False, divergence_factor=None):
         """
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it uses
         Newton's method.
@@ -490,6 +490,8 @@ class BoozerSurface(Optimizable):
             stab (float, Optional): The stabilization parameter for the Newton method. Defaults to 0.
             weight_inv_modB (bool, Optional): If True, weight the residual by modB so that it does not scale with coil currents. Defaults to True.
             verbose (bool, Optional): If True, print the optimization progress. Defaults to False.
+            divergence_factor (float, Optional): Stop, unsuccessfully, once the gradient norm exceeds this multiple
+                of its value at the starting point. ``None`` disables the check. Defaults to None.
         
         Returns:
             dict: A dictionary containing the results of the optimization. The dictionary contains the following keys in addition
@@ -520,7 +522,7 @@ class BoozerSurface(Optimizable):
         val, dval, d2val = self.boozer_penalty_constraints_vectorized(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
 
         norm = initial_norm = np.linalg.norm(dval)
-        while i < maxiter and norm > tol:
+        while i < maxiter and norm > tol and (divergence_factor is None or norm <= divergence_factor * initial_norm):
             H = d2val + stab*np.identity(d2val.shape[0])
             dx = np.linalg.solve(H, dval)
             if norm < 1e-9:
