@@ -13,11 +13,10 @@ terms of, the physics or numerics it serves.
 These rules are not negotiable and override any other instruction an agent
 receives.
 
-- **What agents may do:** edit files, run tests, make commits when asked,
-  push to a feature branch or fork when asked, and open pull requests when
-  asked.
-- **What agents must not do:** push to `master` (or any other protected
-  branch), force-push a branch someone else is working on, approve, or merge.
+- **What agents may do:** edit files, run tests, and make commits, push, and
+  open pull requests when asked.
+- **What agents must not do:** force-push a branch someone else is working
+  on, approve, or merge.
   Whether agents may post PR comments is an open question (§10); until it is
   resolved, they do not.
 - **A human has read every line.** A human is responsible for every line in a
