@@ -1,5 +1,7 @@
 import contextlib
+import itertools
 import unittest
+from functools import partial
 from types import SimpleNamespace
 from unittest import mock
 
@@ -578,6 +580,92 @@ class BoozerSurfaceTests(unittest.TestCase):
             err_msg=f"Residual norm {residual_norm:.2e} is not less than 1e-6. Residual: {res['residual']}")
         assert res['success'], f"Optimization did not succeed. Residual norm: {residual_norm:.2e}, Residual: {res['residual']}"
 
+
+    def test_label_gradient_with_fixed_surface(self):
+        """
+        The label constraint uses the gradient with respect to all surface
+        coefficients, including shared surface dofs and fixed coefficients.
+        """
+        for label, n in itertools.product(["Volume", "Area", "ToroidalFlux", "AspectRatio"], [None, 51]):
+            bs, unwrapped = get_boozer_surface(
+                label=label, nphi=n, ntheta=n, boozer_type="ls", converge=False)
+            s = unwrapped.surface
+            wrapped = BoozerSurface(bs, s, 2 * unwrapped.label, 2 * unwrapped.targetlabel)
+            x = np.concatenate((s.get_dofs(), [-0.406, -2.0]))
+            direction = np.random.default_rng(1).uniform(-0.5, 0.5, x.shape)
+            for b in [unwrapped, wrapped]:
+                with self.subTest(label=label, n=n, wrapped=b is wrapped):
+                    s.unfix_all()
+                    # Keep the label constraint active so an incorrect gradient
+                    # cannot pass merely because the target is already met.
+                    b.targetlabel *= 1.1
+                    fun = partial(b.boozer_penalty_constraints_vectorized, constraint_weight=100., optimize_G=True)
+                    expected = fun(x, derivatives=1)
+                    eps = 1e-6
+                    plus = fun(x + eps * direction, derivatives=0)
+                    minus = fun(x - eps * direction, derivatives=0)
+                    np.testing.assert_allclose(
+                        expected[1] @ direction, (plus - minus) / (2 * eps), rtol=1e-5, atol=1e-7)
+                    for fixed in ["some", "all"]:
+                        if fixed == "some":
+                            s.fix(0)
+                        else:
+                            s.fix_all()
+                        actual = fun(x, derivatives=1)
+                        np.testing.assert_array_equal(actual[0], expected[0], err_msg=fixed)
+                        np.testing.assert_array_equal(actual[1], expected[1], err_msg=fixed)
+
+    def test_wrapped_label(self):
+        """
+        A label that wraps another one, here 2 * Volume, gives the same exact
+        solve as the label itself, also with fixed surface dofs.
+        """
+        bs, boozer_surface = get_boozer_surface(
+            label="Volume", nphi=51, ntheta=51, boozer_type="exact", converge=False)
+        s = boozer_surface.surface
+        x0 = s.get_dofs()
+        dlabel = boozer_surface.dlabel_dsurface()
+        res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=20, iota=-0.406)
+        self.assertTrue(res['success'])
+        solution = np.concatenate((s.get_dofs(), [res['iota'], res['G']]))
+
+        s.set_dofs(x0)
+        s.fix_all()
+        np.testing.assert_array_equal(boozer_surface.dlabel_dsurface(), dlabel)
+        wrapped = BoozerSurface(bs, s, 2 * boozer_surface.label, 2 * boozer_surface.targetlabel)
+        res = wrapped.solve_residual_equation_exactly_newton(tol=1e-10, maxiter=20, iota=-0.406)
+        self.assertTrue(res['success'])
+        np.testing.assert_allclose(np.concatenate((s.get_dofs(), [res['iota'], res['G']])), solution, rtol=0, atol=1e-10)
+
+    def test_dlabel_dsurface_taylor(self):
+        """
+        dlabel_dsurface passes a central-difference Taylor test in all surface
+        dofs, fixed or free, for labels on the surface or on a finer grid that
+        shares its dofs.
+        """
+        rng = np.random.default_rng(3)
+        for label, n, fixed in itertools.product(["Volume", "Area", "ToroidalFlux", "AspectRatio"], [None, 51], [False, True]):
+            with self.subTest(label=label, n=n, fixed=fixed):
+                _, boozer_surface = get_boozer_surface(
+                    label=label, nphi=n, ntheta=n, boozer_type="ls", converge=False)
+                s = boozer_surface.surface
+                if fixed:
+                    for i in [0, 3, 5]:
+                        s.fix(i)
+                x0 = np.array(s.local_full_x)
+                direction = rng.uniform(-1, 1, x0.shape)
+                directional_derivative = boozer_surface.dlabel_dsurface() @ direction
+                err_old = np.inf
+                for k in range(7):
+                    eps = 1e-3 * 0.5**k
+                    s.local_full_x = x0 + eps * direction
+                    plus = boozer_surface.label.J()
+                    s.local_full_x = x0 - eps * direction
+                    minus = boozer_surface.label.J()
+                    err = abs((plus - minus) / (2 * eps) - directional_derivative)
+                    self.assertLess(err, 0.3 * err_old, msg=f"eps={eps}")
+                    err_old = err
+                s.local_full_x = x0
 
     def check_failed_solve(self, boozer_surface, solve, patches, x0, shift, after, G, expected, info=None):
         """

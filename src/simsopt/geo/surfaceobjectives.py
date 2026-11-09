@@ -1018,7 +1018,7 @@ class BoozerResidual(Optimizable):
 
         # dJ_diota, dJ_dG  to the end of dJ_ds are on the end
         dl = np.zeros((J.shape[1],))
-        dlabel_dsurface = self.boozer_surface.label.dJ_by_dsurfacecoefficients()
+        dlabel_dsurface = self.boozer_surface.dlabel_dsurface()
         dl[:dlabel_dsurface.size] = dlabel_dsurface
         Jtil = np.concatenate((J/np.sqrt(num_points), np.sqrt(self.constraint_weight) * dl[None, :]), axis=0)
         dJ_ds = Jtil.T@rtil

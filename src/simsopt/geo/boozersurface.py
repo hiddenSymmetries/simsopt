@@ -177,6 +177,15 @@ class BoozerSurface(Optimizable):
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
+    def dlabel_dsurface(self):
+        """
+        Derivative of the label with respect to all surface dofs, fixed or free.
+        Include surfaces sharing these dofs, e.g. labels on a different grid.
+        """
+        partials = self.label.dJ(partials=True)
+        return sum((partials.data[s] for s in self.surface.dofs.dep_opts()),
+                   np.zeros(self.surface.local_full_dof_size))
+
     def run_code(self, iota, G=None):
         """
         Run the default solvers, i.e., run Newton's method directly if you are computing a BoozerExact surface,
@@ -309,7 +318,7 @@ class BoozerSurface(Optimizable):
 
         dl = np.zeros(dofs.shape)
         drz = np.zeros(dofs.shape)
-        dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
+        dl[:nsurfdofs] = self.dlabel_dsurface()
         drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
 
         Jnl = boozer[1]
@@ -372,7 +381,7 @@ class BoozerSurface(Optimizable):
         dl = np.zeros((xl.shape[0]-2,))
 
         l = self.label.J()
-        dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
+        dl[:nsurfdofs] = self.dlabel_dsurface()
         drz = np.zeros((xl.shape[0]-2,))
         g = [l-self.targetlabel]
         rz = (s.gamma()[0, 0, 2] - 0.)
@@ -683,7 +692,7 @@ class BoozerSurface(Optimizable):
         # Get constraint derivatives - shape should match J shape (which already has correct number of columns)
         dl = np.zeros(J.shape[1])
         drz = np.zeros(J.shape[1])
-        dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
+        dl[:nsurfdofs] = self.dlabel_dsurface()
         drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
 
         J = np.vstack((J, np.sqrt(constraint_weight) * dl[None, :], np.sqrt(constraint_weight) * drz[None, :]))
@@ -713,7 +722,7 @@ class BoozerSurface(Optimizable):
     def _exact_residual_jacobian(self, J, mask):
         """Jacobian of :meth:`_exact_residual` given the Jacobian ``J`` of the full residual."""
         s = self.surface
-        rows = [J[mask, :], np.concatenate((self.label.dJ(partials=True)(s), [0., 0.]))]
+        rows = [J[mask, :], np.concatenate((self.dlabel_dsurface(), [0., 0.]))]
         if not s.stellsym:
             rows.append(np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.])))
         return np.vstack(rows)
