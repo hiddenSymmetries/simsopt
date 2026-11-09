@@ -12,15 +12,18 @@ For the state a :class:`BoozerProblem` holds and a decision vector ``x``:
   ``BoozerSurface.solve_residual_equation_exactly_newton`` solves, at the
   residual rows that
   :func:`simsopt_jax_adapters.geo.boozer_problem.boozer_exact_residual_rows`
-  takes from the surface's native ``get_stellsym_mask()``.
+  takes from the surface's native ``get_stellsym_mask()``;
+- :func:`boozer_penalty_residual` returns the residuals and Jacobian of
+  native ``BoozerSurface._get_residual_vector_and_jacobian``, whose half
+  squared norm is the penalty (the least-squares solvers' formulation).
 
 ``x`` is ``[surface DOFs, iota, G]``, or ``[surface DOFs, iota]`` when
 ``optimize_G`` is false and ``G`` is native's constant from the coil currents;
 the exact constraints append the two multipliers. Surface DOFs are the native
 ``get_dofs()`` vector, fixed DOFs included, and derivatives are taken with
 respect to all of them (native's ``dgamma_by_dcoeff`` convention). Arguments
-named as in native select the same outputs, with native's defaults; the
-penalty's ``constraint_weight`` is the problem's.
+named as in native select the same outputs, with native's defaults; the two
+penalty formulations take ``constraint_weight`` from the problem.
 
 Each formulation is one primal function of ``x`` (surface evaluation, field,
 residual, label, ``z(0, 0)``), and its derivatives are JAX transforms of it
@@ -98,6 +101,7 @@ __all__ = [
     "boozer_exact_constraints",
     "boozer_exact_residual",
     "boozer_penalty_constraints",
+    "boozer_penalty_residual",
     "boozer_surface_residual",
     "make_boozer_problem",
 ]
@@ -459,6 +463,64 @@ def boozer_penalty_constraints(
 
     result = objective_derivatives(penalty, x, derivatives)
     return result[0] if derivatives == 0 else result
+
+
+@partial(jit, static_argnames=_STATIC_OPTIONS)
+def boozer_penalty_residual(
+    problem: BoozerProblem,
+    x: jax.Array,
+    *,
+    derivatives: int = 0,
+    optimize_G: bool = False,
+    weight_inv_modB: bool = True,
+) -> tuple[jax.Array, ...]:
+    """Native ``BoozerSurface._get_residual_vector_and_jacobian`` with
+    ``constraint_weight = problem.constraint_weight``: ``(r,)``, ``(r, J)``
+    or ``(r, J, H)``, by :func:`~simsopt_jax.core.boozer_residual.residual_derivatives`.
+
+    ``r`` is the Boozer residual over the square root of its length, then
+    ``sqrt(w) (label - target)`` and ``sqrt(w) z(0, 0)``; ``0.5 |r|^2`` is the
+    penalty of :func:`boozer_penalty_constraints`.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        x (jax.Array): Shape (nx,) vector [all surface DOFs in meters, dimensionless
+            iota, optional G in tesla meters]; nx = nsurface + 1 + int(optimize_G).
+        derivatives (int): Derivative order, 0 for values, 1 to add first derivatives,
+            or 2 to add second derivatives.
+        optimize_G (bool): Include G as the last decision variable; otherwise use mu0
+            times the sum of absolute coil currents.
+        weight_inv_modB (bool): Divide each point's Boozer residual by the field
+            magnitude in teslas.
+
+    Returns:
+        tuple[jax.Array, ...]: Residual shape (nr,), optionally Jacobian (nr, nx) and
+            Hessians (nr, nx, nx), where nr = 3 * npoints + 2. Boozer entries are
+            divided by sqrt(3 * npoints); the label and z entries are multiplied by
+            sqrt(constraint_weight). Squaring and halving its norm gives
+            boozer_penalty_constraints.
+
+    Raises:
+        ValueError: If ``derivatives`` is not 0, 1 or 2, or the problem has no
+            ``constraint_weight``.
+        TypeError: When the ``derivatives >= 1`` outputs are differentiated in ``x``.
+    """
+
+    x = _decision_vector(x, "boozer_penalty_residual", derivatives)
+
+    def residuals(point):
+        residual, label_residual, z_residual = _penalty_terms(
+            problem,
+            point,
+            optimize_G=optimize_G,
+            weight_inv_modB=weight_inv_modB,
+            order=derivatives,
+        )
+        scale = np.sqrt(residual.shape[0])
+        return jnp.concatenate((residual / scale, jnp.stack((label_residual, z_residual))))
+
+    return residual_derivatives(residuals, x, derivatives)
 
 
 @partial(jit, static_argnames=("derivatives", "optimize_G"))

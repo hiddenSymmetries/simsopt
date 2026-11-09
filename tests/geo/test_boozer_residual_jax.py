@@ -46,9 +46,18 @@ with optional_jax_imports():
         boozer_exact_constraints,
         boozer_exact_residual,
         boozer_penalty_constraints,
+        boozer_penalty_residual,
     )
     from simsopt_jax.core.boozer_problem import (
         boozer_surface_residual as jax_boozer_surface_residual,
+    )
+    from simsopt_jax.core.boozer_solvers import (
+        boozer_exact_newton,
+        boozer_penalty_bfgs,
+        boozer_penalty_gauss_newton,
+        boozer_penalty_lbfgsb,
+        boozer_penalty_newton,
+        boozer_residual_objective,
     )
     from simsopt_jax.runtime.host_boundary import disallow_host_transfers
     from simsopt_jax_adapters.field import JaxBiotSavart
@@ -835,17 +844,16 @@ class TestBoozerResidualJax(JaxTestCase):
 
     def test_fixed_surface_dofs_leave_the_derivatives_unchanged(self):
         """Derivatives are with respect to all surface DOFs, fixed ones included,
-        as native ``dgamma_by_dcoeff``. Native ``BoozerSurface`` at 9e027eac3 cannot
-        evaluate a surface with fixed DOFs (its label gradient has the free DOFs
-        only and does not fit), so the reference is native with every DOF free."""
+        as native ``dgamma_by_dcoeff`` and native's label gradient
+        ``dlabel_dsurface``: native with the same DOFs fixed is the reference."""
         setup = _setup("tensor", True, "volume")
+        names = list(setup.surface.local_full_dof_names)
+        setup.surface.fix(names[0])
+        setup.surface.fix(names[4])
         x = _decision(setup.surface, False)
         expected = _native_boozer(setup, 2.0).boozer_penalty_constraints_vectorized(
             x.copy(), derivatives=2, constraint_weight=2.0
         )
-        names = list(setup.surface.local_full_dof_names)
-        setup.surface.fix(names[0])
-        setup.surface.fix(names[4])
         problem = boozer_problem(
             setup.field, setup.surface, setup.label, setup.target, 2.0
         )
@@ -1325,6 +1333,10 @@ class TestBoozerResidualJax(JaxTestCase):
                 partial(boozer_penalty_constraints, problem, derivatives=1, optimize_G=True),
                 x,
             ),
+            "penalty residual": (
+                partial(boozer_penalty_residual, problem, derivatives=1, optimize_G=True),
+                x,
+            ),
             "exact constraints": (
                 partial(boozer_exact_constraints, problem, derivatives=1),
                 xl,
@@ -1410,12 +1422,17 @@ class TestBoozerResidualJax(JaxTestCase):
 
     def test_formulations_cast_the_decision_vector_to_float64(self):
         """A float32 decision vector is evaluated in float64: every formulation
-        and derivative equals its value at the same numbers in float64."""
+        and derivative, the residual objective with its ``dJ/dx``, and each
+        solver's first iterate equal their values at the same numbers in
+        float64."""
         setup = _setup("tensor", False, "volume")
         problem = boozer_problem(
             setup.field, setup.surface, setup.label, setup.target, 3.0
         )
         rows = boozer_exact_residual_rows(setup.surface)
+        # One step of each solver: tol 0 never stops it before maxiter 1.
+        tol, one = jnp.asarray(0.0), jnp.asarray(1.0)
+        options = {"optimize_G": True, "weight_inv_modB": True}
         formulations = {
             "residual": lambda x, xl: jax_boozer_surface_residual(
                 problem, x, derivatives=2, optimize_G=True
@@ -1423,11 +1440,34 @@ class TestBoozerResidualJax(JaxTestCase):
             "penalty": lambda x, xl: boozer_penalty_constraints(
                 problem, x, derivatives=2, optimize_G=True
             ),
+            "penalty residual": lambda x, xl: boozer_penalty_residual(
+                problem, x, derivatives=2, optimize_G=True
+            ),
             "exact constraints": lambda x, xl: boozer_exact_constraints(
                 problem, xl, derivatives=1
             ),
             "exact residual": lambda x, xl: boozer_exact_residual(
                 problem, x, rows, derivatives=1
+            ),
+            "residual objective": lambda x, xl: boozer_residual_objective(
+                problem, x, **options
+            )[:2],
+            "exact Newton": lambda x, xl: (
+                boozer_exact_newton(problem, x, rows, tol, one).x,
+            ),
+            "penalty Newton": lambda x, xl: (
+                boozer_penalty_newton(problem, x, tol, one, tol, **options).x,
+            ),
+            "Gauss-Newton": lambda x, xl: (
+                boozer_penalty_gauss_newton(problem, x, tol, one, **options).x,
+            ),
+            "BFGS": lambda x, xl: (
+                boozer_penalty_bfgs(problem, x, tol, one, **options).x,
+            ),
+            "L-BFGS-B": lambda x, xl: (
+                boozer_penalty_lbfgsb(
+                    problem, x, tol, tol, one, maxcor=3, **options
+                ).x,
             ),
         }
         decision = _decision(setup.surface, True, (0.37, -0.23))

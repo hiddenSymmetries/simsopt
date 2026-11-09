@@ -40,7 +40,8 @@
     "examples/2_Intermediate/stage_two_optimization.py",
     "tests/field/test_stage_two_biotsavart_jax.py",
     "tests/geo/test_surface_geometry_jax.py",
-    "tests/geo/test_boozer_residual_jax.py"
+    "tests/geo/test_boozer_residual_jax.py",
+    "tests/core/test_boozer_solver_loops_jax.py"
   ],
   "extraPaths": [
     "src",
