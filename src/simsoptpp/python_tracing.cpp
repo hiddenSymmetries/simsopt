@@ -14,7 +14,10 @@ using std::vector;
 void init_tracing(py::module_ &m){
 
 
-    py::class_<StoppingCriterion, shared_ptr<StoppingCriterion>>(m, "StoppingCriterion");
+    py::class_<StoppingCriterion, shared_ptr<StoppingCriterion>>(m, "StoppingCriterion")
+        .def("__call__", &StoppingCriterion::operator(),
+            "Return True if the criterion is satisfied at iteration `iter`, time `t` and position (x, y, z).",
+            py::arg("iter"), py::arg("t"), py::arg("x"), py::arg("y"), py::arg("z"));
     py::class_<IterationStoppingCriterion, shared_ptr<IterationStoppingCriterion>, StoppingCriterion>(m, "IterationStoppingCriterion")
         .def(py::init<int>());
     py::class_<MinRStoppingCriterion, shared_ptr<MinRStoppingCriterion>, StoppingCriterion>(m, "MinRStoppingCriterion")
