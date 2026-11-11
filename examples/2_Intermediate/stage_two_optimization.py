@@ -19,7 +19,8 @@ achieved as well. This example demonstrates the adjustment of weights and
 penalties via the use of the `Weight` class.
 
 The target equilibrium is the QA configuration of arXiv:2108.03711.
-Use --use-jax to select the optional JAX field; the native field is the default.
+Use --use-jax to select the optional JAX field and objective adapters; the native field is the default.
+With --use-jax their sum runs as one compiled JAX program; --unfused evaluates each term separately.
 In CI the JAX path runs 10 iterations per stage; the native path runs 50.
 """
 
@@ -36,6 +37,11 @@ from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 from simsopt.util import in_github_actions
 
 try:
+    from simsopt_jax_adapters.geo import (
+        JaxCurveCurveDistance, JaxCurveLength, JaxCurveSurfaceDistance,
+        JaxLpCurveCurvature, JaxMeanSquaredCurvature,
+    )
+    from simsopt_jax_adapters.objectives import JaxFusedStageTwoObjective, JaxSquaredFlux
     from simsopt_jax.backend import set_backend
     from simsopt_jax_adapters.field import JaxBiotSavart
 except ImportError as error:
@@ -44,9 +50,14 @@ else:
     jax_import_error = None
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--use-jax", action="store_true", help="Use the optional JAX Biot-Savart field")
+parser.add_argument("--use-jax", action="store_true", help="Use the optional JAX field and objective adapters")
 parser.add_argument("--device", choices=("cpu", "gpu"), default="cpu")
+parser.add_argument("--unfused", action="store_true",
+                    help="Evaluate each objective term separately instead of one compiled program; requires --use-jax")
 args = parser.parse_args()
+if args.unfused and not args.use_jax:
+    parser.error("--unfused requires --use-jax")
+fused = args.use_jax and not args.unfused
 if args.use_jax:
     if jax_import_error is not None:
         parser.error(f"--use-jax requires Python >= 3.12 and jax/jaxlib >= 0.12: {jax_import_error}")
@@ -124,12 +135,19 @@ pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.uni
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the individual terms objective function:
-Jf = SquaredFlux(s, bs)
-Jls = [CurveLength(c) for c in base_curves]
-Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
-Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
-Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
-Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
+SquaredFluxT, CurveLengthT, CurveCurveDistanceT, CurveSurfaceDistanceT, LpCurveCurvatureT, MeanSquaredCurvatureT = (
+    (JaxSquaredFlux, JaxCurveLength, JaxCurveCurveDistance, JaxCurveSurfaceDistance, JaxLpCurveCurvature,
+     JaxMeanSquaredCurvature)
+    if args.use_jax else
+    (SquaredFlux, CurveLength, CurveCurveDistance, CurveSurfaceDistance, LpCurveCurvature, MeanSquaredCurvature)
+)
+Jf = SquaredFluxT(s, bs)
+Jls = [CurveLengthT(c) for c in base_curves]
+Jccdist = CurveCurveDistanceT(curves, CC_THRESHOLD, num_basecurves=ncoils)
+Jcsdist = CurveSurfaceDistanceT(curves, s, CS_THRESHOLD)
+Jcs = [LpCurveCurvatureT(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
+Jmscs = [MeanSquaredCurvatureT(c) for c in base_curves]
+
 
 
 # Form the total objective function. To do this, we can exploit the
@@ -142,15 +160,17 @@ JF = Jf \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs)
 
+# Evaluate the whole sum as one compiled program; it reads LENGTH_WEIGHT at every evaluation.
+if fused:
+    JF = JaxFusedStageTwoObjective(JF)
+
+
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
 
 
-def fun(dofs):
-    JF.x = dofs
-    J = JF.J()
-    grad = JF.dJ()
+def progress(J, grad):
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
@@ -160,7 +180,22 @@ def fun(dofs):
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
-    print(outstr)
+    return outstr
+
+
+# Print the progress line on every 50th evaluation and after each optimization.
+PRINT_EVERY = 50
+evaluation_count = 0
+
+
+def fun(dofs):
+    global evaluation_count
+    JF.x = dofs
+    J = JF.J()
+    grad = JF.dJ()
+    evaluation_count += 1
+    if evaluation_count % PRINT_EVERY == 0:
+        print(progress(J, grad))
     return J, grad
 
 
@@ -186,6 +221,9 @@ print("""
 ################################################################################
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+# The minimizer's last evaluation need not be at its result, so the outputs below use res.x.
+JF.x = res.x
+print(f"{res.nfev} evaluations: {progress(res.fun, res.jac)}")
 curves_to_vtk(curves, OUT_DIR + "curves_opt_short")
 pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
@@ -197,6 +235,8 @@ s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
 dofs = res.x
 LENGTH_WEIGHT *= 0.1
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+JF.x = res.x
+print(f"{res.nfev} evaluations: {progress(res.fun, res.jac)}")
 curves_to_vtk(curves, OUT_DIR + "curves_opt_long")
 pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
