@@ -12,7 +12,7 @@ from simsopt.geo.surfaceobjectives import Area, AspectRatio, ToroidalFlux, Volum
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
 from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-from simsopt_jax.core._math_utils import as_jax_int32
+from simsopt_jax.backend.dtypes import explicit_device_array
 from simsopt_jax.core.boozer_problem import (
     BoozerLabelSpec,
     BoozerProblem,
@@ -87,18 +87,18 @@ def boozer_problem(
     )
 
 
-def boozer_exact_residual_rows(surface: SurfaceXYZTensorFourier) -> jax.Array:
-    """Return int32 indices selecting the BoozerExact residual equations.
+def boozer_exact_residual_mask(surface: SurfaceXYZTensorFourier) -> np.ndarray:
+    """Return the flattened boolean mask selecting BoozerExact residual equations.
 
     Other surface classes and unsupported stellarator-symmetric grids raise.
 
     Args:
-        surface (SurfaceXYZTensorFourier): Native surface whose stellarator-symmetry
-            mask selects the equations.
+        surface (SurfaceXYZTensorFourier): Native surface with a supported exact-solve
+            quadrature grid.
 
     Returns:
-        jax.Array: Shape (nrows,) int32 indices of flattened residual entries; omits the
-            x equation at (0, 0) under stellarator symmetry.
+        numpy.ndarray: Boolean shape (3 * nphi * ntheta,) native exact residual mask,
+            excluding the x equation at (0, 0) under stellarator symmetry.
     """
     if not isinstance(surface, SurfaceXYZTensorFourier):
         raise RuntimeError(
@@ -107,4 +107,25 @@ def boozer_exact_residual_rows(surface: SurfaceXYZTensorFourier) -> jax.Array:
     mask = np.repeat(surface.get_stellsym_mask()[..., None], 3, axis=2)
     if surface.stellsym:
         mask[0, 0, 0] = False
-    return as_jax_int32(np.flatnonzero(mask))
+    return mask.flatten()
+
+
+def boozer_exact_residual_rows(
+    surface: SurfaceXYZTensorFourier, reference: jax.Array | None = None
+) -> jax.Array:
+    """Return int32 indices of the BoozerExact residual mask on the selected device.
+
+    Other surface classes and unsupported stellarator-symmetric grids raise.
+
+    Args:
+        surface (SurfaceXYZTensorFourier): Native surface with a supported exact-solve
+            quadrature grid.
+        reference (jax.Array | None): Optional device-placement reference, with
+            arbitrary shape; None uses the active device.
+
+    Returns:
+        jax.Array: Shape (nrows,) int32 flattened residual indices in native mask order,
+            placed like reference when supplied.
+    """
+    rows = np.flatnonzero(boozer_exact_residual_mask(surface))
+    return explicit_device_array(rows, dtype=np.int32, reference=reference)

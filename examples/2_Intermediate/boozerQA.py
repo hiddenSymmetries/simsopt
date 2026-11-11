@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import os
 import numpy as np
 from scipy.optimize import minimize
@@ -27,7 +28,26 @@ There is also a penalty on the total coil length as a regularizer to prevent the
 too complex.  The BFGS optimizer is used, and quasisymmetry is improved substantially on the surface.
 
 More details on this work can be found at doi:10.1017/S0022377822000563 or arxiv:2203.03753.
+Use --use-jax with --device {cpu,gpu} to select the optional JAX field and Boozer surface.
 """
+
+try:
+    from simsopt_jax.backend import set_backend
+    from simsopt_jax_adapters.field import JaxBiotSavart
+    from simsopt_jax_adapters.geo.boozer_surface import JaxBoozerSurface
+except ImportError as error:
+    jax_import_error = str(error)
+else:
+    jax_import_error = None
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--use-jax", action="store_true", help="Use the optional JAX field and Boozer surface")
+parser.add_argument("--device", choices=("cpu", "gpu"), default="cpu")
+args = parser.parse_args()
+if args.use_jax:
+    if jax_import_error is not None:
+        parser.error(f"--use-jax requires Python >= 3.12 and jax/jaxlib >= 0.12: {jax_import_error}")
+    set_backend("jax", device="gpu" if args.device == "gpu" else "cpu")
 
 # Directory for output
 OUT_DIR = "./output/"
@@ -37,10 +57,11 @@ print("Running 2_Intermediate/boozerQA.py")
 print("================================")
 
 base_curves, base_currents, ma, nfp, bs  = get_data("ncsx")
+bs = JaxBiotSavart(bs.coils) if args.use_jax else bs
 # bs.coils includes all coils after symmetry expansion (not just the base coils).
 # You can access them directly like this:
 all_curves = [c.curve for c in bs.coils]
-bs_tf = BiotSavart(bs.coils)
+bs_tf = JaxBiotSavart(bs.coils) if args.use_jax else BiotSavart(bs.coils)
 current_sum = nfp * sum(abs(c.get_value()) for c in base_currents)
 G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
@@ -64,13 +85,14 @@ vol = Volume(s)
 vol_target = vol.J()
 
 ## compute the surface
-boozer_surface = BoozerSurface(bs, s, vol, vol_target)
+boozer_surface = JaxBoozerSurface(bs, s, vol, vol_target) if args.use_jax else BoozerSurface(bs, s, vol, vol_target)
 res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G0)
 
-out_res = boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)[0]
+bs_diagnostic = BiotSavart(bs.coils) if args.use_jax else bs
+out_res = boozer_surface_residual(s, res['iota'], res['G'], bs_diagnostic, derivatives=0)[0]
 print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}, ||residual||={np.linalg.norm(out_res):.3e}")
 ## SET UP THE OPTIMIZATION PROBLEM AS A SUM OF OPTIMIZABLES ##
-bs_nonQS = BiotSavart(bs.coils)
+bs_nonQS = JaxBiotSavart(bs.coils) if args.use_jax else BiotSavart(bs.coils)
 mr = MajorRadius(boozer_surface)
 ls = [CurveLength(c) for c in base_curves]
 
@@ -89,7 +111,21 @@ boozer_surface.surface.to_vtk(OUT_DIR + "surf_init")
 base_currents[0].fix_all()
 
 
+def progress(J, grad):
+    cl_string = ", ".join([f"{J.J():.1f}" for J in ls])
+    outstr = f"J={J:.1e}, J_nonQSRatio={J_nonQSRatio.J():.2e}, iota={boozer_surface.res['iota']:.2e}, mr={mr.J():.2e}"
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in ls):.1f}"
+    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    return outstr
+
+
+# Print the progress line on every 50th evaluation and after each optimization.
+PRINT_EVERY = 50
+evaluation_count = 0
+
+
 def fun(dofs):
+    global evaluation_count
     # save these as a backup in case the boozer surface Newton solve fails
     sdofs_prev = boozer_surface.surface.x
     iota_prev = boozer_surface.res['iota']
@@ -108,11 +144,9 @@ def fun(dofs):
         boozer_surface.res['iota'] = iota_prev
         boozer_surface.res['G'] = G_prev
 
-    cl_string = ", ".join([f"{J.J():.1f}" for J in ls])
-    outstr = f"J={J:.1e}, J_nonQSRatio={J_nonQSRatio.J():.2e}, iota={boozer_surface.res['iota']:.2e}, mr={mr.J():.2e}"
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in ls):.1f}"
-    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
-    print(outstr)
+    evaluation_count += 1
+    if evaluation_count % PRINT_EVERY == 0:
+        print(progress(J, grad))
     return J, grad
 
 
@@ -143,6 +177,7 @@ print("""
 MAXITER = 50 if in_github_actions else 1e3
 
 res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER}, tol=1e-15)
+print(f"{res.nfev} evaluations: J={res.fun:.1e}, ║∇J║={np.linalg.norm(res.jac):.1e}")
 curves_to_vtk(all_curves, OUT_DIR + "curves_opt")
 boozer_surface.surface.to_vtk(OUT_DIR + "surf_opt")
 
