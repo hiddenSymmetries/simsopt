@@ -48,7 +48,7 @@ with optional_jax_imports():
     from simsopt_jax.backend.jit import jit
     from simsopt._core.derivative import Derivative
     from simsopt._core.optimizable import Optimizable
-    from simsopt.geo import CurveXYZFourier
+    from simsopt.geo import CurveXYZFourier, SurfaceRZFourier
 
 
 @skipIf(JAX_IMPORT_ERROR is not None, JAX_IMPORT_ERROR or "")
@@ -314,6 +314,13 @@ def circle_curve(center, radius, numquadpoints=20):
 # squared threshold: with and without fused multiply-adds the candidate test
 # differs in the last bit (both directions).
 DISTANCE_TIE_CASES = (((0.2, 0.5, 0.3), 0.6164414002968976), ((0.1, 0.4, 0.1), 0.42426406871192857))
+
+_QA_INPUT = Path(__file__).resolve().parent / "test_files" / "input.LandremanPaul2021_QA"
+
+
+def qa_surface() -> SurfaceRZFourier:
+    """Half a field period of the Landreman-Paul QA boundary on an 8 by 9 grid."""
+    return SurfaceRZFourier.from_vmec_input(str(_QA_INPUT), range="half period", nphi=8, ntheta=9)
 
 
 def run_fresh_process(
