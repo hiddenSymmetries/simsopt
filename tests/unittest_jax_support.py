@@ -336,6 +336,13 @@ if JAX_IMPORT_ERROR is None:
     compiled_stage_two_objective = jit(fused_stage_two_objective)
 
 
+def assert_close(actual, expected, name: str = "") -> None:
+    """``actual`` equals ``expected`` to a relative 1e-11 and an absolute 1e-12 of the largest ``expected`` entry."""
+    expected = np.asarray(expected)
+    np.testing.assert_allclose(np.asarray(actual), expected, rtol=1e-11, atol=1e-12 * np.max(np.abs(expected)),
+                               err_msg=name)
+
+
 def run_fresh_process(
     *arguments: str | Path, env: Mapping[str, str] | None = None, cwd: Path | None = None, timeout: float | None = None
 ) -> subprocess.CompletedProcess[str]:
