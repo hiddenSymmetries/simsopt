@@ -48,6 +48,8 @@ Bloat is a cost every future maintainer pays. Prefer:
   `Derivative`, existing curve/surface/field classes) before adding new
   abstractions. Delete dead code you make obsolete. No speculative
   generality, unused options, or defensive checks for impossible states.
+  Minimize the use of small single-use helper functions; they make the code
+  harder to follow.
 - **Fewer, stronger tests** (see §6).
 - **Concise text.** Commit messages, PR descriptions, docstrings, and comments
   should be as short as they can be while remaining complete. No restating the
@@ -63,6 +65,11 @@ Bloat is a cost every future maintainer pays. Prefer:
   committing.
 - Comment *why*, not *what*: non-obvious numerics, sign conventions,
   coordinate choices, and units.
+- Comments describe the code as it is, not its history ("instead of X, we now
+  do Y"). Explain what changed and why in the commit message or PR instead.
+- Code that runs on both CPU and GPU (e.g. JAX) can behave very differently
+  on each: a change that speeds up the CPU can slow down the GPU, so check
+  both when you can.
 
 ## 5. Changing existing code
 
@@ -89,7 +96,8 @@ preference:
    invariance under `nfp` rotations, coordinate-independence.
 3. Derivative checks: Taylor tests showing the adjoint/analytic gradient
    agrees with finite differences with the expected convergence order.
-4. Convergence with resolution at the expected rate.
+4. Convergence with resolution at the expected rate (e.g. spectral
+   convergence of the trapezoidal rule on a periodic integrand).
 5. Reproduction of a published result or an independent code.
 6. Only then: plain input/output or regression tests.
 
@@ -191,3 +199,5 @@ until a question is resolved and this section is updated.
    Coverage is measured for Python only, so C++ in `src/simsoptpp` is covered
    only through its Python bindings. *Current default:* `codecov.yml`'s
    `target: auto` (patch coverage must not fall below the project's).
+4. **Target hardware.** What hardware should performance work prioritize:
+   a laptop CPU, CPU clusters with MPI, or GPUs? *Current default:* none.
