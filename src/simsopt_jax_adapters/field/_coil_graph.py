@@ -17,19 +17,23 @@ def _as_float64_scalar(value):
     return np.asarray(value, dtype=np.float64).item()
 
 
+def _unwrap_rotated_curve(curve):
+    """Return the curve inside ``RotatedCurve`` wrappers and their composed rotation, or None without one."""
+    rotmat = None
+    while _is_rotated_curve_like(curve):
+        next_rotmat = np.asarray(curve.rotmat, dtype=np.float64)
+        rotmat = next_rotmat if rotmat is None else next_rotmat @ rotmat
+        curve = curve.curve
+    return curve, rotmat
+
+
 def _unwrap_coil_curve_and_current_objects(curve, current):
     scale = 1.0
     while _is_scaled_current_like(current):
         scale *= _as_float64_scalar(current.scale)
         current = current.current_to_scale
 
-    rotmat = None
-    while _is_rotated_curve_like(curve):
-        next_rotmat = np.asarray(curve.rotmat, dtype=np.float64)
-        rotmat = next_rotmat if rotmat is None else next_rotmat @ rotmat
-        curve = curve.curve
-
-    return curve, rotmat, current, scale
+    return (*_unwrap_rotated_curve(curve), current, scale)
 
 
 def _scale_parameters(opt) -> np.ndarray:

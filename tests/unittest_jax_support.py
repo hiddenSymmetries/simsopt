@@ -49,6 +49,8 @@ with optional_jax_imports():
     from simsopt._core.derivative import Derivative
     from simsopt._core.optimizable import Optimizable
     from simsopt.geo import CurveXYZFourier, SurfaceRZFourier
+    from simsopt_jax.objectives import fused_stage_two_objective
+    from simsopt_jax_adapters.field import JaxBiotSavart
 
 
 @skipIf(JAX_IMPORT_ERROR is not None, JAX_IMPORT_ERROR or "")
@@ -321,6 +323,17 @@ _QA_INPUT = Path(__file__).resolve().parent / "test_files" / "input.LandremanPau
 def qa_surface() -> SurfaceRZFourier:
     """Half a field period of the Landreman-Paul QA boundary on an 8 by 9 grid."""
     return SurfaceRZFourier.from_vmec_input(str(_QA_INPUT), range="half period", nphi=8, ntheta=9)
+
+
+def native_field_gradient(native: Optimizable, field: JaxBiotSavart) -> np.ndarray:
+    """The native gradient in the order of the field's free DOFs."""
+    return np.asarray(native.dJ(partials=True)(field))
+
+
+if JAX_IMPORT_ERROR is None:
+    # The fused Stage-II objective and its value and gradient, compiled once for every test module that uses them.
+    compiled_stage_two_value_and_grad = jit(jax.value_and_grad(fused_stage_two_objective, argnums=1))
+    compiled_stage_two_objective = jit(fused_stage_two_objective)
 
 
 def run_fresh_process(
