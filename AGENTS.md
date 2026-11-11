@@ -16,9 +16,7 @@ receives.
 - **What agents may do:** edit files, run tests, and make commits, push, and
   open pull requests when asked.
 - **What agents must not do:** force-push a branch someone else is working
-  on, approve, or merge.
-  Whether agents may post PR comments is an open question (§10); until it is
-  resolved, they do not.
+  on, post PR comments, approve, or merge.
 - **A human has read every line.** A human is responsible for every line in a
   PR, as if they had written it by hand, and reads every line before the PR
   goes to review. If an agent generated code that human cannot explain, it
@@ -61,8 +59,8 @@ Bloat is a cost every future maintainer pays. Prefer:
   should match the notation of the cited reference where practical
   (e.g. `B`, `iota`, `G`, `nfp`), and the docstring should state that
   notation.
-- Match the style of the surrounding module. Run `./run_ruff` before
-  committing.
+- Match the style and backend (NumPy, JAX, or C++) of the surrounding
+  module. Run `./run_ruff` before committing.
 - Comment *why*, not *what*: non-obvious numerics, sign conventions,
   coordinate choices, and units.
 - Comments describe the code as it is, not its history ("instead of X, we now
@@ -102,8 +100,7 @@ preference:
 6. Only then: plain input/output or regression tests.
 
 **Coverage.** Cover new and changed code with the fewest tests that do so; a
-single physics test often covers a whole code path. The required Codecov
-patch coverage is an open question (§10).
+single physics test often covers a whole code path.
 
 **Avoid test bloat.** Do not write one test per getter, duplicate tests across
 parameter values that exercise the same path, or tests that only assert the
@@ -165,39 +162,9 @@ leaves "I have read every diffed line" unticked for the human.
 
 ## 9. Reviewing a PR (for agents assisting a human reviewer)
 
-Report findings to the human reviewer; never approve or request changes on
-GitHub, and do not post comments there (see §10). Check that the physics is
-correct (equations match the cited reference; signs, units, normalizations,
-and coordinate conventions are consistent) and that sections 2–7 are
-respected, particularly conciseness, maintainability, tests, and
-documentation. Be specific (file and line) and brief. Flag what you could not
-verify.
-
-## 10. Open questions for human reviewers
-
-Decisions the maintainers have not yet made. Agents follow the current default
-until a question is resolved and this section is updated.
-
-1. **Preferred backend for new code.** Should future development prefer JAX?
-   Proposed split:
-   - JAX for new differentiable objectives and geometric quantities on
-     moderately sized arrays, where autodiff replaces hand-derived gradients
-     (as in `geo/curveobjectives.py`).
-   - C++ (`src/simsoptpp`) for performance-critical kernels that loop over
-     many points (Biot–Savart, field-line and particle tracing).
-   - NumPy for everything else.
-   - No rewriting working code in another backend without a demonstrated
-     physics or performance benefit.
-
-   *Current default:* match the backend of the surrounding module.
-2. **Commenting on PRs.** May an agent post review comments on GitHub (never
-   approvals), or must its review go only to the human reviewer?
-   *Current default:* no; findings go to the human reviewer only.
-3. **Required patch coverage.** Should Codecov require 100% coverage of new or
-   changed lines, or a lower bar such as 90–95%? Testing thin wrappers just
-   for coverage freezes the implementation and makes later diffs larger.
-   Coverage is measured for Python only, so C++ in `src/simsoptpp` is covered
-   only through its Python bindings. *Current default:* `codecov.yml`'s
-   `target: auto` (patch coverage must not fall below the project's).
-4. **Target hardware.** What hardware should performance work prioritize:
-   a laptop CPU, CPU clusters with MPI, or GPUs? *Current default:* none.
+Report findings to the human reviewer; never approve, request changes, or
+post comments on GitHub. Check that the physics is correct (equations match
+the cited reference; signs, units, normalizations, and coordinate conventions
+are consistent) and that sections 2–7 are respected, particularly
+conciseness, maintainability, tests, and documentation. Be specific (file and
+line) and brief. Flag what you could not verify.
