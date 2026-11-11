@@ -705,5 +705,58 @@ class SurfaceTaylorTests(unittest.TestCase):
                     self.subtest_surface_theta_derivative(surfacetype, stellsym)
 
 
+class SurfaceXYZTensorFourierClampedTests(unittest.TestCase):
+    """Clamped second derivatives against central differences in phi (nfp 2 and 3) and theta; the clamp factors nfp/2 and 1/2 are real-valued."""
+    phi0 = 0.13
+    theta0 = 0.37
+    steps = (1e-3, 1e-4)
+
+    def _relative_errors(self, nfp, direction):
+        """Output name -> relative central-difference errors along ``direction`` ("phi" or "theta"), one per step."""
+        errors = {}
+        lo = (0, 0)
+        for h in self.steps:
+            offsets = np.asarray([-h, 0.0, h])
+            if direction == "phi":
+                phis, thetas = self.phi0 + offsets, np.asarray([self.theta0])
+                first, second = "gammadash1", "gammadash1dash1"
+                mid, hi = (1, 0), (2, 0)
+            else:
+                phis, thetas = np.asarray([self.phi0]), self.theta0 + offsets
+                first, second = "gammadash2", "gammadash2dash2"
+                mid, hi = (0, 1), (0, 2)
+            s = SurfaceXYZTensorFourier(nfp=nfp, stellsym=False, mpol=2, ntor=2, clamped_dims=[True, True, True],
+                                        quadpoints_phi=phis, quadpoints_theta=thetas)
+            # The same perturbation at every step: a fresh generator with one seed.
+            s.x = np.asarray(s.x) + 0.05 * np.random.default_rng(3).standard_normal(len(s.x))
+            for d1_name, d2_name in [(first, second),
+                                     (f"d{first}_by_dcoeff", f"d{second}_by_dcoeff")]:
+                d1 = getattr(s, d1_name)()
+                exact = getattr(s, d2_name)()[mid]
+                estimate = (d1[hi] - d1[lo]) / (2 * h)
+                err = np.linalg.norm(estimate - exact) / np.linalg.norm(exact)
+                errors.setdefault(d2_name, []).append(err)
+        return errors
+
+    def _assert_second_order(self, direction):
+        """Assert the central-difference error falls as h**2 for nfp 2 and 3."""
+        ratio = (self.steps[0] / self.steps[1]) ** 2
+        for nfp in [2, 3]:
+            for name, (err_coarse, err_fine) in self._relative_errors(nfp, direction).items():
+                with self.subTest(nfp=nfp, output=name):
+                    # A wrong second derivative leaves an h-independent error (>= 2e-3 for
+                    # the integer-division bug); a correct one shrinks by ~ratio.
+                    self.assertGreater(err_coarse / err_fine, 0.5 * ratio)
+                    self.assertLess(err_fine, 1e-5)
+
+    def test_clamped_phi2_derivative(self):
+        """Check d2(gamma)/dphi2 and its coefficient derivative converge at O(h^2) in phi."""
+        self._assert_second_order("phi")
+
+    def test_clamped_theta2_derivative(self):
+        """Check d2(gamma)/dtheta2 and its coefficient derivative converge at O(h^2) in theta."""
+        self._assert_second_order("theta")
+
+
 if __name__ == "__main__":
     unittest.main()
