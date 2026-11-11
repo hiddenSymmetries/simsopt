@@ -22,7 +22,13 @@ Main steps:
 - Run the optimization in two stages (with different length penalties).
 - Save results and print summary statistics.
 
+Use --use-jax for the optional JAX field and objective adapters, which evaluate the whole
+objective as one compiled program; add --unfused to evaluate each term separately.
+Native execution is the default.
+JAX CI runs 10 iterations per stage; native CI runs 50.
+
 """
+import argparse
 import os
 import shutil
 from pathlib import Path
@@ -38,6 +44,34 @@ from simsopt.field import BiotSavart
 from simsopt.field.force import LpCurveForce, B2Energy
 from simsopt.field.selffield import regularization_circ
 from simsopt.util import in_github_actions, calculate_modB_on_major_radius
+
+try:
+    from simsopt_jax_adapters.geo import (
+        JaxCurveCurveDistance, JaxCurveLength, JaxCurveSurfaceDistance,
+        JaxLpCurveCurvature, JaxMeanSquaredCurvature,
+    )
+    from simsopt_jax_adapters.objectives import JaxFusedStageTwoObjective, JaxSquaredFlux
+    from simsopt_jax.backend import set_backend
+    from simsopt_jax_adapters.field import JaxB2Energy, JaxBiotSavart, JaxLpCurveForce
+except ImportError as error:
+    jax_import_error = str(error)
+else:
+    jax_import_error = None
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--use-jax", action="store_true", help="Use the optional JAX field and objective adapters")
+parser.add_argument("--device", choices=("cpu", "gpu"), default="cpu")
+parser.add_argument("--unfused", action="store_true",
+                    help="Evaluate each objective term separately instead of one compiled program; requires --use-jax")
+args = parser.parse_args()
+if args.unfused and not args.use_jax:
+    parser.error("--unfused requires --use-jax")
+fused = args.use_jax and not args.unfused
+if args.use_jax:
+    if jax_import_error is not None:
+        parser.error(f"--use-jax requires Python >= 3.12 and jax/jaxlib >= 0.12: {jax_import_error}")
+    set_backend("jax", device="gpu" if args.device == "gpu" else "cpu")
+
 
 
 ###############################################################################
@@ -84,7 +118,7 @@ FORCE_WEIGHT = Weight(1e-2)  # (MN/m)^4 units
 B2Energy_WEIGHT = Weight(1e-4)  
 
 # Number of iterations to perform:
-MAXITER = 50 if in_github_actions else 400
+MAXITER = (10 if args.use_jax else 50) if in_github_actions else 400
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -104,7 +138,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Initialize the boundary magnetic surface:
 nphi = 32 if not in_github_actions else 8
 ntheta = 32 if not in_github_actions else 8
-s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(str(filename), range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(
@@ -119,7 +153,7 @@ base_currents[0].fix_all()
 regularizations = [regularization_circ(0.05) for _ in range(ncoils)]
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, s.stellsym, regularizations)
 base_coils = coils[:ncoils]
-bs = BiotSavart(coils)
+bs = JaxBiotSavart(coils) if args.use_jax else BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 calculate_modB_on_major_radius(bs, s)
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -128,18 +162,27 @@ a = 0.05
 nturns = 100
 curves = [c.curve for c in coils]
 coils_to_vtk(coils, OUT_DIR + "coils_init", close=True)
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the individual terms objective function:
-Jf = SquaredFlux(s, bs)
-Jls = [CurveLength(c) for c in base_curves]
-Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
-Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
-Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
-Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-Jforce = LpCurveForce(base_coils, coils, p=4)
-J_b2energy = B2Energy(coils)
+(SquaredFluxT, CurveLengthT, CurveCurveDistanceT, CurveSurfaceDistanceT, LpCurveCurvatureT, MeanSquaredCurvatureT,
+ LpCurveForceT, B2EnergyT) = (
+    (JaxSquaredFlux, JaxCurveLength, JaxCurveCurveDistance, JaxCurveSurfaceDistance, JaxLpCurveCurvature,
+     JaxMeanSquaredCurvature, JaxLpCurveForce, JaxB2Energy)
+    if args.use_jax else
+    (SquaredFlux, CurveLength, CurveCurveDistance, CurveSurfaceDistance, LpCurveCurvature, MeanSquaredCurvature,
+     LpCurveForce, B2Energy)
+)
+Jf = SquaredFluxT(s, bs)
+Jls = [CurveLengthT(c) for c in base_curves]
+Jccdist = CurveCurveDistanceT(curves, CC_THRESHOLD, num_basecurves=ncoils)
+Jcsdist = CurveSurfaceDistanceT(curves, s, CS_THRESHOLD)
+Jcs = [LpCurveCurvatureT(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
+Jmscs = [MeanSquaredCurvatureT(c) for c in base_curves]
+Jforce = LpCurveForceT(base_coils, coils, p=4)
+J_b2energy = B2EnergyT(coils)
+
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
@@ -153,9 +196,33 @@ JF = Jf \
     + FORCE_WEIGHT * Jforce \
     + B2Energy_WEIGHT * J_b2energy
 
+# Evaluate the whole sum as one compiled program; it reads LENGTH_WEIGHT at every evaluation.
+if fused:
+    JF = JaxFusedStageTwoObjective(JF)
+
+
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
+
+
+def progress(J, grad):
+    BdotN = np.mean(np.abs(np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+    BdotN_over_B = np.mean(np.abs(np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+                           ) / np.mean(bs.AbsB())
+    outstr = f"J={J:.1e}, Jf={Jf.J():.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
+    cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.2f}"
+    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
+    outstr += f", F={Jforce.J():.2e}"
+    outstr += f", B2Energy={J_b2energy.J():.2e}"
+    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    return outstr
+
+
+# Print the progress line on every 50th evaluation and after each optimization.
+PRINT_EVERY = 50
+evaluation_count = 0
 
 
 def fun(dofs):
@@ -174,20 +241,13 @@ def fun(dofs):
     grad : np.ndarray
         Gradient of the objective function with respect to dofs.
     """
+    global evaluation_count
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
-    BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-    BdotN_over_B = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-                           ) / np.mean(bs.AbsB())
-    outstr = f"J={J:.1e}, Jf={Jf.J():.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
-    cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.2f}"
-    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
-    outstr += f", F={Jforce.J():.2e}"
-    outstr += f", B2Energy={J_b2energy.J():.2e}"
-    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
-    print(outstr)
+    evaluation_count += 1
+    if evaluation_count % PRINT_EVERY == 0:
+        print(progress(J, grad))
     return J, grad
 
 
@@ -217,9 +277,12 @@ dofs = JF.x
 print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={LENGTH_WEIGHT.value}")
 # print("INITIAL OPTIMIZATION")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+# The minimizer's last evaluation need not be at its result, so the outputs below use res.x.
+JF.x = res.x
+print(f"{res.nfev} evaluations: {progress(res.fun, res.jac)}")
 coils_to_vtk(coils, OUT_DIR + "coils_opt_short", close=True)
 
-pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+pointData_surf = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData_surf)
 
 # We now use the result from the optimization as the initial guess for a
@@ -229,19 +292,20 @@ dofs = res.x
 LENGTH_WEIGHT *= 0.1
 # print("OPTIMIZATION WITH REDUCED LENGTH PENALTY\n")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+JF.x = res.x
+print(f"{res.nfev} evaluations: {progress(res.fun, res.jac)}")
 coils_to_vtk(coils, OUT_DIR + "coils_opt_force", close=True)
-pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+pointData_surf = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + f"surf_opt_force_WEIGHT={FORCE_WEIGHT.value:e}_LWEIGHT={LENGTH_WEIGHT.value*10:e}", extra_data=pointData_surf)
 
 # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
 bs.save(OUT_DIR + "biot_savart_opt.json")
 
 #Print out final important info:
-JF.x = dofs
 J = JF.J()
 grad = JF.dJ()
 jf = Jf.J()
-BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+BdotN = np.mean(np.abs(np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
 outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
 cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
 kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
