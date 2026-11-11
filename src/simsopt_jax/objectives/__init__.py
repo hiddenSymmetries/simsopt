@@ -9,6 +9,7 @@ from .stage_two import (
     make_stage_two_problem,
     stage_two_coil_geometry,
     stage_two_geometric_penalty,
+    stage_two_geometry,
 )
 
 __all__ = (
@@ -20,4 +21,5 @@ __all__ = (
     "make_stage_two_problem",
     "stage_two_coil_geometry",
     "stage_two_geometric_penalty",
+    "stage_two_geometry",
 )

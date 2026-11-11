@@ -309,6 +309,40 @@ def _filament_terms(frame, input_jets, dn, db) -> tuple[jax.Array, ...]:
     return terms(*input_jets)
 
 
+def curve_filament_pack_from_dofs(
+    spec: CurveFilamentSpec,
+    dofs,
+    offsets: tuple[tuple[float, float], ...],
+) -> tuple[jax.Array, ...]:
+    """Return base-curve geometry and offset filaments sharing a curve and frame.
+
+    Args:
+        spec: CurveFilamentSpec object defining base curve, DOF maps, rotation and frame.
+        dofs: Array of shape (ndofs,), full filament DOFs in spec mapping order.
+        offsets: tuple of (dn, db) normal/binormal offsets in m, one per filament.
+
+    Returns:
+        tuple: Base (gamma, gammadash, gammadashdash), each shape (nquadpoints, 3)
+            in m, then filament gamma and gammadash, each shape
+            (nfilaments, nquadpoints, 3) in m.
+    """
+    frame, input_jets = _curve_filament_input_jets(spec, dofs, 1)
+    # Both frames take (gamma, gammadash, ...) of the base curve, so the frame
+    # inputs start with gamma and their parameter derivatives with
+    # (gammadash, gammadashdash).
+    base_geometry = (input_jets[0][0], *input_jets[1][:2])
+    dn, db = (
+        _as_jax_float64(np.asarray(values, dtype=np.float64))
+        for values in zip(*offsets, strict=True)
+    )
+    gammas, gammadashs = jax.vmap(
+        lambda filament_dn, filament_db: _filament_terms(
+            frame, input_jets, filament_dn, filament_db
+        )
+    )(dn, db)
+    return (*base_geometry, gammas, gammadashs)
+
+
 def _curve_filament_terms_from_dofs(spec: CurveFilamentSpec, dofs, order: int):
     frame, input_jets = _curve_filament_input_jets(spec, dofs, order)
     dn = _as_jax_float64(spec.dn)

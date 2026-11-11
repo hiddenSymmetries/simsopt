@@ -11,6 +11,7 @@ from operator import is_
 import jax
 import numpy as np
 from simsopt._core.optimizable import Optimizable, OptimizableSum, ScaledOptimizable
+from simsopt.geo.finitebuild import CurveFilament
 from simsopt.objectives.utilities import QuadraticPenalty
 from simsopt_jax.backend.dtypes import as_jax_float64
 from simsopt_jax.backend.jit import jit
@@ -23,6 +24,13 @@ from simsopt_jax.objectives import (
 )
 
 from simsopt_jax_adapters.field._coil_graph import _unwrap_rotated_curve
+from simsopt_jax_adapters.field.force import (
+    JaxB2Energy,
+    JaxLpCurveForce,
+    JaxLpCurveTorque,
+    JaxSquaredMeanForce,
+    JaxSquaredMeanTorque,
+)
 from simsopt_jax_adapters.geo.curve_objectives import (
     JaxCurveCurveDistance,
     JaxCurveLength,
@@ -40,9 +48,19 @@ _fused_value_and_grad = jit(jax.value_and_grad(fused_stage_two_objective, argnum
 _CURVATURE_P = 2.0
 _TARGET_MODES = ("max", "identity")
 _SUPPORTED_TERMS = (
-    "JaxSquaredFlux, JaxCurveLength, JaxLpCurveCurvature, JaxCurveCurveDistance, JaxCurveSurfaceDistance "
+    "JaxSquaredFlux, JaxCurveLength, JaxLpCurveCurvature, JaxCurveCurveDistance, JaxCurveSurfaceDistance, "
+    "JaxLpCurveForce, JaxLpCurveTorque, JaxSquaredMeanForce, JaxSquaredMeanTorque, JaxB2Energy "
     "and QuadraticPenalty of JaxCurveLength or JaxMeanSquaredCurvature"
 )
+# The coil terms and the prefix of their settings in StageTwoObjectiveConfig.
+_COIL_TERMS = {
+    JaxLpCurveForce: "force",
+    JaxLpCurveTorque: "torque",
+    JaxSquaredMeanForce: "squared_mean_force",
+    JaxSquaredMeanTorque: "squared_mean_torque",
+    JaxB2Energy: "vacuum_energy",
+}
+_LP_COIL_TERMS = (JaxLpCurveForce, JaxLpCurveTorque)
 # Ends each captured list, so that an object moved across a list boundary changes the capture.
 _LIST_END = object()
 
@@ -71,17 +89,22 @@ def _weighted_terms(node: Optimizable, scales: tuple = ()) -> Iterator[_Weighted
 
 
 def _penalized(penalty: QuadraticPenalty) -> tuple[str, tuple]:
-    """Return what a supported QuadraticPenalty penalizes and the terms it encloses."""
+    """Return what a supported QuadraticPenalty penalizes and the terms it encloses.
+
+    A penalty of one JaxCurveLength targets that curve's length; of a sum of them, the total length.
+    """
     inner = list(_weighted_terms(penalty.obj))
     kinds = {type(weighted.term) for weighted in inner}
     if not any(weighted.scales for weighted in inner):
         if kinds == {JaxCurveLength}:
-            return "length", tuple(weighted.term for weighted in inner)
+            kind = "individual length" if type(penalty.obj) is JaxCurveLength else "length"
+            return kind, tuple(weighted.term for weighted in inner)
         if kinds == {JaxMeanSquaredCurvature} and len(inner) == 1:
             return "mean squared curvature", (inner[0].term,)
     raise ValueError(
         f"QuadraticPenalty of {type(penalty.obj).__name__} has no fused form; the fused objective takes "
-        "QuadraticPenalty of an unscaled sum of JaxCurveLength terms or of one JaxMeanSquaredCurvature."
+        "QuadraticPenalty of an unscaled sum of JaxCurveLength terms or of one JaxCurveLength or "
+        "JaxMeanSquaredCurvature."
     )
 
 
@@ -91,23 +114,41 @@ def _curve_key(curve) -> tuple:
     return inner, None if rotmat is None else rotmat.tobytes()
 
 
+def _centerlines(coils: Sequence) -> tuple[list[tuple], int]:
+    """Return the curve keys of the formula's centerlines and the number of filaments per pack.
+
+    A filament's centerline is the curve its frame follows, with the filament's rotation. Consecutive
+    filament coils around one centerline form a pack; a coil without filaments is its own centerline.
+    """
+    keys, filaments = [], False
+    for coil in coils:
+        curve, rotation = _curve_key(coil.curve)
+        if isinstance(curve, CurveFilament):
+            curve, filaments = curve.curve, True
+        keys.append((curve, rotation))
+    pack = next((index for index, key in enumerate(keys) if key != keys[0]), len(keys)) if filaments else 1
+    if any(keys[start:start + pack] != [keys[start]] * pack for start in range(0, len(keys), pack)):
+        raise ValueError("Filament coils must form consecutive packs of one size, each around one centerline.")
+    return keys[::pack], pack
+
+
 def _coil_positions(curves: Sequence, keys: Sequence[tuple], name: str) -> list[int]:
-    """Return each curve's coil position; together the curves must be the leading coils, once each."""
+    """Return each curve's centerline position; together the curves must be the leading centerlines, once each."""
     position: dict[tuple, int] = {}
     for index, key in enumerate(keys):
         position.setdefault(key, index)
     positions = [position.get(_curve_key(curve)) for curve in curves]
     if None in positions:
-        raise ValueError(f"{name} reads a curve that is not a coil of the JaxSquaredFlux field.")
+        raise ValueError(f"{name} reads a curve that is not a coil centerline of the JaxSquaredFlux field.")
     if sorted(positions) != list(range(len(positions))):
-        raise ValueError(f"{name} terms must cover the leading coils of the field, one term per coil.")
+        raise ValueError(f"{name} terms must cover the leading coil centerlines of the field, one term per centerline.")
     return positions
 
 
 def _in_base_order(
     terms: Sequence[_Weighted], curve_of: Callable[[Optimizable], object], keys: Sequence[tuple], name: str
 ) -> tuple[_Weighted, ...]:
-    """Order single-curve terms by the coil position of the curve each reads."""
+    """Order single-curve terms by the centerline position of the curve each reads."""
     positions = _coil_positions([curve_of(weighted.term) for weighted in terms], keys, name)
     return tuple(weighted for _, weighted in sorted(zip(positions, terms), key=lambda item: item[0]))
 
@@ -118,31 +159,80 @@ def _single(terms: Sequence[_Weighted], name: str) -> _Weighted | None:
     return terms[0] if terms else None
 
 
+def _target_count(term: Optimizable, coils: Sequence) -> int | None:
+    """Return how many leading coils a coil term targets, None for the energy of all coils.
+
+    Raises:
+        ValueError: the term's coil lists are not the leading coils and the rest, in coil order.
+    """
+    name = type(term).__name__
+    if type(term) is JaxB2Energy:
+        if list(term.target_coils) != list(coils):
+            raise ValueError(f"{name} must take the coils of the JaxSquaredFlux field, in coil order.")
+        return None
+    count = len(term.target_coils)
+    if (list(term.target_coils) != list(coils[:count]) or term.source_coils_coarse != list(coils[count:])
+            or term.source_coils_fine):
+        raise ValueError(
+            f"{name} must target leading coils of the JaxSquaredFlux field and take the other coils, in coil "
+            "order, as coarse sources."
+        )
+    return count
+
+
+def _regularizations(coil_terms: Sequence[_Weighted], num_coils: int) -> np.ndarray | None:
+    """Return the regularizations the coil terms captured, in m^2, zero for coils no term reads; None without any.
+
+    Raises:
+        ValueError: two terms captured different regularizations of one coil.
+    """
+    # Each term captured those of the leading coils it targets.
+    captured = [term.term.regularizations for term in coil_terms if type(term.term) in (*_LP_COIL_TERMS, JaxB2Energy)]
+    if not captured:
+        return None
+    longest = max(captured, key=len)
+    if any(not np.array_equal(values, longest[: len(values)]) for values in captured):
+        raise ValueError("The force, torque and energy terms captured different coil regularizations.")
+    return np.concatenate([longest, np.zeros(num_coils - len(longest))])
+
+
 @dataclass(frozen=True)
 class _StageTwoTerms:
     """The terms of a native objective that the fused Stage-II formula computes.
 
-    Per-curve tuples hold one term per base curve, in base-curve order. ``enclosed`` holds the terms
-    inside the penalties and ``captured`` the objects whose identity the reading depends on (see
-    :func:`_captured`).
+    Per-curve tuples hold one term per base centerline, in base order. ``coil_terms`` holds the force,
+    torque and energy terms that are present, ``enclosed`` the terms inside the penalties and
+    ``captured`` the objects whose identity the reading depends on (see :func:`_captured`).
     """
 
     flux: _Weighted
     num_basecurves: int
+    num_centerlines: int
+    filaments_per_pack: int
     lengths: tuple[_Weighted, ...]
     length_penalty: _Weighted | None
+    individual_lengths: tuple[_Weighted, ...]
     curvatures: tuple[_Weighted, ...]
     mean_squared_curvatures: tuple[_Weighted, ...]
     curve_curve: _Weighted | None
     curve_surface: _Weighted | None
+    coil_terms: tuple[_Weighted, ...]
+    regularizations: np.ndarray | None
     enclosed: tuple[Optimizable, ...] = ()
     captured: tuple = ()
 
 
+def _penalties(terms: _StageTwoTerms) -> tuple[_Weighted, ...]:
+    return (
+        *([terms.length_penalty] if terms.length_penalty else []), *terms.individual_lengths,
+        *terms.mean_squared_curvatures,
+    )
+
+
 def _captured(terms: _StageTwoTerms) -> tuple:
-    """Return the field, coils, curves and enclosed terms that the terms read now, list by list."""
+    """Return the field, coils, curves, enclosed terms and coil lists that the terms read now, list by list."""
     field = terms.flux.term.field
-    penalties = (*([terms.length_penalty] if terms.length_penalty else []), *terms.mean_squared_curvatures)
+    penalties = _penalties(terms)
     return (
         field, *field.coils, _LIST_END,
         *(weighted.term.curve for weighted in (*terms.lengths, *terms.curvatures)), _LIST_END,
@@ -151,12 +241,20 @@ def _captured(terms: _StageTwoTerms) -> tuple:
         *chain.from_iterable(
             (*distance.term.curves, _LIST_END) for distance in (terms.curve_curve, terms.curve_surface) if distance
         ),
-        *([terms.curve_surface.term.surface] if terms.curve_surface else []),
+        *([terms.curve_surface.term.surface] if terms.curve_surface else []), _LIST_END,
+        *chain.from_iterable(
+            (*coils, _LIST_END)
+            for term in terms.coil_terms
+            for coils in (
+                (term.term.target_coils,) if type(term.term) is JaxB2Energy
+                else (term.term.target_coils, term.term.source_coils_coarse, term.term.source_coils_fine)
+            )
+        ),
     )
 
 
 _SINGLE_TERM_KINDS = (
-    JaxSquaredFlux, JaxCurveLength, JaxLpCurveCurvature, JaxCurveCurveDistance, JaxCurveSurfaceDistance,
+    JaxSquaredFlux, JaxCurveLength, JaxLpCurveCurvature, JaxCurveCurveDistance, JaxCurveSurfaceDistance, *_COIL_TERMS,
 )
 
 
@@ -189,20 +287,25 @@ def _read_terms(objective: Optimizable) -> _StageTwoTerms:
     flux = _single(groups.get(JaxSquaredFlux, []), "JaxSquaredFlux")
     if flux is None:
         raise ValueError("The fused objective needs one JaxSquaredFlux term.")
-    keys = [_curve_key(coil.curve) for coil in flux.term.field.coils]
+    coils = flux.term.field.coils
+    keys, filaments_per_pack = _centerlines(coils)
 
     def penalized_curve(penalty):
         return _penalized(penalty)[1][0].curve
 
     lengths = _in_base_order(groups.get(JaxCurveLength, []), lambda term: term.curve, keys, "JaxCurveLength")
-    length_penalty = _single(groups.get((QuadraticPenalty, "length"), []), "QuadraticPenalty of JaxCurveLength")
+    length_penalty = _single(groups.get((QuadraticPenalty, "length"), []), "QuadraticPenalty of summed JaxCurveLength")
     if lengths and length_penalty is not None:
         raise ValueError(
             "The objective holds JaxCurveLength terms and a QuadraticPenalty of their sum; "
             "the fused objective takes one length term."
         )
     penalized_lengths = () if length_penalty is None else _coil_positions(
-        [term.curve for term in _penalized(length_penalty.term)[1]], keys, "QuadraticPenalty of JaxCurveLength"
+        [term.curve for term in _penalized(length_penalty.term)[1]], keys, "QuadraticPenalty of summed JaxCurveLength"
+    )
+    individual_lengths = _in_base_order(
+        groups.get((QuadraticPenalty, "individual length"), []), penalized_curve, keys,
+        "QuadraticPenalty of JaxCurveLength",
     )
     curvatures = _in_base_order(
         groups.get(JaxLpCurveCurvature, []), lambda term: term.curve, keys, "JaxLpCurveCurvature"
@@ -211,17 +314,22 @@ def _read_terms(objective: Optimizable) -> _StageTwoTerms:
         groups.get((QuadraticPenalty, "mean squared curvature"), []), penalized_curve, keys,
         "QuadraticPenalty of JaxMeanSquaredCurvature",
     )
+    coil_terms = tuple(
+        term for term in (_single(groups.get(kind, []), kind.__name__) for kind in _COIL_TERMS) if term is not None
+    )
+    target_counts = {_target_count(term.term, coils) for term in coil_terms} - {None}
     base_counts = {
-        len(terms) for terms in (lengths, penalized_lengths, curvatures, mean_squared_curvatures) if terms
-    }
+        len(terms) for terms in (lengths, penalized_lengths, individual_lengths, curvatures, mean_squared_curvatures)
+        if terms
+    } | target_counts
     if len(base_counts) > 1:
-        raise ValueError("The length and curvature terms must cover the same base curves.")
+        raise ValueError("The length, curvature, force and torque terms must cover the same base coils.")
     curve_curve = _single(groups.get(JaxCurveCurveDistance, []), "JaxCurveCurveDistance")
     curve_surface = _single(groups.get(JaxCurveSurfaceDistance, []), "JaxCurveSurfaceDistance")
     for distance in (curve_curve, curve_surface):
         if distance is not None and [_curve_key(curve) for curve in distance.term.curves] != keys:
             raise ValueError(
-                f"{type(distance.term).__name__} must take the curves of the JaxSquaredFlux field's coils, "
+                f"{type(distance.term).__name__} must take the centerlines of the JaxSquaredFlux field's coils, "
                 "in coil order."
             )
     num_basecurves = (
@@ -232,17 +340,20 @@ def _read_terms(objective: Optimizable) -> _StageTwoTerms:
     terms = _StageTwoTerms(
         flux=flux,
         num_basecurves=num_basecurves,
+        num_centerlines=len(keys),
+        filaments_per_pack=filaments_per_pack,
         lengths=lengths,
         length_penalty=length_penalty,
+        individual_lengths=individual_lengths,
         curvatures=curvatures,
         mean_squared_curvatures=mean_squared_curvatures,
         curve_curve=curve_curve,
         curve_surface=curve_surface,
-        enclosed=tuple(
-            term for penalty in (*([length_penalty] if length_penalty else []), *mean_squared_curvatures)
-            for term in _penalized(penalty.term)[1]
-        ),
+        coil_terms=coil_terms,
+        regularizations=_regularizations(coil_terms, len(coils)),
     )
+    enclosed = tuple(term for penalty in _penalties(terms) for term in _penalized(penalty.term)[1])
+    terms = replace(terms, enclosed=enclosed)
     return replace(terms, captured=_captured(terms))
 
 
@@ -264,6 +375,34 @@ def _check_searched_candidates(distance: JaxCurveCurveDistance | JaxCurveSurface
         raise ValueError(f"{type(distance).__name__} has assigned candidates; the fused objective finds its own.")
 
 
+def _curve_curve_pairs(distance: JaxCurveCurveDistance, terms: _StageTwoTerms) -> str:
+    """Return the formula's pair set for the distance's ``num_basecurves``."""
+    if distance.num_basecurves == terms.num_basecurves:
+        return "base"
+    if distance.num_basecurves == terms.num_centerlines:
+        return "all"
+    raise ValueError(
+        f"JaxCurveCurveDistance has num_basecurves={distance.num_basecurves}; the fused objective takes the "
+        f"{terms.num_basecurves} base coils of the other terms or all {terms.num_centerlines} centerlines."
+    )
+
+
+def _coil_term_settings(terms: Sequence[_Weighted]) -> dict[str, object]:
+    """Read the weights, exponents, thresholds and downsampling of the force, torque and energy terms."""
+    if not terms:
+        return {}
+    settings: dict[str, object] = {
+        "force_downsample": _shared([term.term.downsample for term in terms], "coil term downsample values"),
+    }
+    for weighted in terms:
+        prefix = _COIL_TERMS[type(weighted.term)]
+        settings[f"{prefix}_weight"] = weighted.weight()
+        if type(weighted.term) in _LP_COIL_TERMS:
+            settings[f"{prefix}_p"] = weighted.term.p
+            settings[f"{prefix}_threshold"] = weighted.term.threshold
+    return settings
+
+
 def _stage_two_settings(terms: _StageTwoTerms) -> dict[str, object]:
     """Read the current weights, thresholds and modes as ``StageTwoObjectiveConfig`` arguments.
 
@@ -272,7 +411,10 @@ def _stage_two_settings(terms: _StageTwoTerms) -> dict[str, object]:
     """
     if terms.flux.weight() != 1.0:
         raise ValueError("The fused objective takes JaxSquaredFlux unscaled.")
-    settings: dict[str, object] = {"num_basecurves": terms.num_basecurves}
+    settings: dict[str, object] = {
+        "num_basecurves": terms.num_basecurves,
+        "filaments_per_pack": terms.filaments_per_pack,
+    }
     if terms.lengths:
         settings["length_weight"] = _shared([term.weight() for term in terms.lengths], "JaxCurveLength weights")
     if terms.length_penalty is not None:
@@ -281,6 +423,17 @@ def _stage_two_settings(terms: _StageTwoTerms) -> dict[str, object]:
             length_weight=terms.length_penalty.weight(),
             length_target=float(penalty.cons),
             length_target_mode=_target_mode(penalty),
+        )
+    if terms.individual_lengths:
+        penalties = [term.term for term in terms.individual_lengths]
+        settings.update(
+            individual_length_weight=_shared(
+                [term.weight() for term in terms.individual_lengths], "individual length penalty weights"
+            ),
+            individual_length_targets=tuple(float(penalty.cons) for penalty in penalties),
+            individual_length_target_mode=_shared(
+                [_target_mode(penalty) for penalty in penalties], "individual length penalty modes"
+            ),
         )
     if terms.curvatures:
         if any(float(term.term.p) != _CURVATURE_P for term in terms.curvatures):
@@ -308,15 +461,11 @@ def _stage_two_settings(terms: _StageTwoTerms) -> dict[str, object]:
         distance = terms.curve_curve.term
         if distance.downsample != 1:
             raise ValueError("The fused objective takes JaxCurveCurveDistance with downsample=1 only.")
-        if distance.num_basecurves != terms.num_basecurves:
-            raise ValueError(
-                f"JaxCurveCurveDistance has num_basecurves={distance.num_basecurves}; the length and curvature "
-                f"terms cover {terms.num_basecurves} base curves."
-            )
         _check_searched_candidates(distance)
         settings.update(
             curve_curve_weight=terms.curve_curve.weight(),
             curve_curve_minimum_distance=float(distance.minimum_distance),
+            curve_curve_pairs=_curve_curve_pairs(distance, terms),
         )
     if terms.curve_surface is not None:
         distance = terms.curve_surface.term
@@ -325,6 +474,7 @@ def _stage_two_settings(terms: _StageTwoTerms) -> dict[str, object]:
             curve_surface_weight=terms.curve_surface.weight(),
             curve_surface_minimum_distance=float(distance.minimum_distance),
         )
+    settings.update(_coil_term_settings(terms.coil_terms))
     return settings
 
 
@@ -355,24 +505,35 @@ class JaxFusedStageTwoObjective(Optimizable):
 
     - :class:`~simsopt_jax_adapters.geo.JaxCurveLength` terms, or one ``QuadraticPenalty`` of their
       unscaled sum;
+    - ``QuadraticPenalty`` terms of one :class:`~simsopt_jax_adapters.geo.JaxCurveLength` each;
     - :class:`~simsopt_jax_adapters.geo.JaxLpCurveCurvature` terms with ``p=2``;
     - ``QuadraticPenalty`` terms of one :class:`~simsopt_jax_adapters.geo.JaxMeanSquaredCurvature` each;
     - one :class:`~simsopt_jax_adapters.geo.JaxCurveCurveDistance` with ``downsample=1`` and one
-      :class:`~simsopt_jax_adapters.geo.JaxCurveSurfaceDistance`, each of all the flux field's coil
-      curves in coil order, without assigned candidates.
+      :class:`~simsopt_jax_adapters.geo.JaxCurveSurfaceDistance`, each of all the centerlines in coil
+      order, without assigned candidates; the curve-curve distance has ``num_basecurves`` of the
+      base coils or of all centerlines;
+    - one each of :class:`~simsopt_jax_adapters.field.JaxLpCurveForce`,
+      :class:`~simsopt_jax_adapters.field.JaxLpCurveTorque`,
+      :class:`~simsopt_jax_adapters.field.JaxSquaredMeanForce` and
+      :class:`~simsopt_jax_adapters.field.JaxSquaredMeanTorque` that target the base coils with the
+      other coils as coarse sources, and :class:`~simsopt_jax_adapters.field.JaxB2Energy` of all coils,
+      with one ``downsample``, in a field without filaments.
 
-    Penalties use ``f`` ``"max"`` or ``"identity"``. Each kind of single-curve term has one term per
-    leading coil of the field, the same coils for every kind and for the curve-curve distance's
-    ``num_basecurves``, and one weight, threshold and mode.
+    A coil's centerline is its curve or, for finite-build filaments, the curve their frame follows;
+    the filaments around one centerline must be consecutive coils. Penalties use ``f`` ``"max"`` or
+    ``"identity"``. Each kind of single-curve term has one term per leading centerline, the same
+    base coils for every kind and for the force and torque targets, and one weight, threshold and
+    mode.
 
-    The set of terms is read at construction. Scale factors, weights, thresholds, exponents, targets
-    and modes are read at each evaluation, and so are the coils, curves and enclosed terms that the
-    terms hold: changed ones are read again and validated. ``J()`` and ``dJ()`` at the same DOFs run
-    the program once. New numeric settings or fixed DOF values rebuild its operands; new penalty
-    modes, newly present or absent terms or targets, or new free DOF counts compile it again.
-    The wrapper is the whole objective: put every term into ``JF`` before wrapping and give the
-    wrapper to the optimizer. It cannot be added to, scaled by or wrapped in other objectives, whose
-    gradients would ask it for partial derivatives (``dJ(partials=True)``), which it does not provide.
+    The set of terms is read at construction. Scale factors, weights, thresholds, exponents, targets,
+    modes and downsampling are read at each evaluation, and so are the coils, curves, coil lists and
+    enclosed terms that the terms hold: changed ones are read again and validated. ``J()`` and
+    ``dJ()`` at the same DOFs run the program once. New numeric settings or fixed DOF values rebuild
+    its operands; new penalty modes or downsampling, newly present or absent terms or targets, or new
+    free DOF counts compile it again. The wrapper is the whole objective: put every term into ``JF``
+    before wrapping and give the wrapper to the optimizer. It cannot be added to, scaled by or
+    wrapped in other objectives, whose gradients would ask it for partial derivatives
+    (``dJ(partials=True)``), which it does not provide.
     At a distance threshold the fused candidate test can round to the other side than the native
     search, which can change whether degenerate geometry gives a NaN gradient. Instances hold mutable
     caches and must not be shared across threads.
@@ -432,7 +593,8 @@ class JaxFusedStageTwoObjective(Optimizable):
             "surface_normal": as_jax_float64(surface.normal().reshape((-1, 3))),
         }
         problem = make_stage_two_problem(
-            field, flux.fixed_surface_flux_spec(), StageTwoObjectiveConfig(**settings), **distance_surface
+            field, flux.fixed_surface_flux_spec(), StageTwoObjectiveConfig(**settings),
+            regularizations=terms.regularizations, **distance_surface,
         )
         field_ranges = {id(opt.dofs): range(*field.dof_indices[opt]) for opt in field.unique_dof_lineage}
         own_order = np.fromiter(

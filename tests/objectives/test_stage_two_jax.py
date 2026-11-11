@@ -38,7 +38,7 @@ with optional_jax_imports():
     from simsopt_jax.core.specs import make_curve_xyzfourier_spec, make_optimizable_dof_map_spec
     from simsopt_jax.objectives import StageTwoObjectiveConfig, fused_stage_two_objective, fused_stage_two_values
     from simsopt_jax.objectives import make_stage_two_problem, stage_two_geometric_penalty
-    from simsopt_jax.objectives.stage_two import _ordinary_curve_geometry, stage_two_coil_geometry
+    from simsopt_jax.objectives.stage_two import _ordinary_curve_geometry, stage_two_coil_geometry, stage_two_geometry
     from simsopt_jax_adapters.field import JaxBiotSavart
     from simsopt_jax_adapters.geo import JaxCurveCurveDistance, JaxCurveLength, JaxCurveSurfaceDistance
     from simsopt_jax_adapters.geo import JaxLpCurveCurvature, JaxMeanSquaredCurvature
@@ -1075,6 +1075,20 @@ def _scalar_geometry(extraction: CoilSetDofExtractionSpec,
     return (jnp.stack(gammas), jnp.stack(dashs), jnp.stack(dashdashs), jnp.stack(currents))
 
 
+def _ordinary_stage_two_geometry(extraction: CoilSetDofExtractionSpec,
+                                 parameters: jax.Array) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    """Project the fused ordinary-coil route onto ``stage_two_coil_geometry``'s outputs."""
+    geometry = stage_two_geometry(extraction, parameters)
+    return (geometry.gamma, geometry.gammadash, geometry.centerline_gammadashdash, geometry.currents)
+
+
+if JAX_IMPORT_ERROR is None:
+    # Both routes to the batched coil geometry, by the name each subTest reports.
+    _GEOMETRY_FUNCTIONS = {function.__name__: function
+                           for function in (stage_two_coil_geometry, _ordinary_stage_two_geometry)}
+    _GEOMETRIES = [dict(geometry=name) for name in _GEOMETRY_FUNCTIONS]
+
+
 def _geometry_energy(geometry: tuple[jax.Array, ...]) -> jax.Array:
     # Nonlinear geometry and current terms exercise both first and second derivatives.
     return sum((jnp.mean(jnp.sin(value) ** 2) for value in geometry), start=placement_zero(geometry[0]))
@@ -1086,7 +1100,15 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
     def test_mixed_geometry_matches_scalar_with_distinct_grids_and_symmetries(self) -> None:
         """Batched geometry matches per-curve evaluation for curves with different grids and symmetries."""
         extraction, parameters = _mixed_problem()
-        actual = jit(stage_two_coil_geometry)(extraction, parameters)
+        expected = _scalar_geometry(extraction, parameters)
+        geometry = stage_two_geometry(extraction, parameters)
+        np.testing.assert_allclose(geometry.centerline_gamma, expected[0], rtol=3e-13, atol=3e-12)
+        np.testing.assert_allclose(geometry.centerline_gammadash, expected[1], rtol=3e-13, atol=3e-12)
+        self.run_cases(self._case_mixed_geometry_matches_scalar_with_distinct_grids_and_symmetries, _GEOMETRIES)
+
+    def _case_mixed_geometry_matches_scalar_with_distinct_grids_and_symmetries(self, geometry: str) -> None:
+        extraction, parameters = _mixed_problem()
+        actual = jit(_GEOMETRY_FUNCTIONS[geometry])(extraction, parameters)
         expected = _scalar_geometry(extraction, parameters)
         for value, reference in zip(actual, expected, strict=True):
             np.testing.assert_allclose(value, reference, rtol=3e-13, atol=3e-12)
@@ -1095,10 +1117,13 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
 
     def test_mixed_geometry_gradients_and_hessian_vector_match_scalar(self) -> None:
         """Gradients and Hessian-vector products of batched geometry match per-curve evaluation."""
+        self.run_cases(self._case_mixed_geometry_gradients_and_hessian_vector_match_scalar, _GEOMETRIES)
+
+    def _case_mixed_geometry_gradients_and_hessian_vector_match_scalar(self, geometry: str) -> None:
         extraction, parameters = _mixed_problem()
 
         def batched(values: jax.Array) -> jax.Array:
-            return _geometry_energy(stage_two_coil_geometry(extraction, values))
+            return _geometry_energy(_GEOMETRY_FUNCTIONS[geometry](extraction, values))
 
         def scalar(values: jax.Array) -> jax.Array:
             return _geometry_energy(_scalar_geometry(extraction, values))
@@ -1112,11 +1137,14 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
 
     def test_absent_source_indices_preserve_separate_curve_mappings(self) -> None:
         """Coils without a shared source curve keep their own DOF mappings."""
+        self.run_cases(self._case_absent_source_indices_preserve_separate_curve_mappings, _GEOMETRIES)
+
+    def _case_absent_source_indices_preserve_separate_curve_mappings(self, geometry: str) -> None:
         extraction, parameters = _mixed_problem()
         first = _with_curve_mapping(extraction.coils[0], extraction.coils[0].curve_map, None)
         second = _with_curve_mapping(first, _dof_map(first.curve.dofs), None)
         independent = make_coil_set_dof_extraction_spec((first, second))
-        actual = stage_two_coil_geometry(independent, parameters)
+        actual = _GEOMETRY_FUNCTIONS[geometry](independent, parameters)
         expected = _scalar_geometry(independent, parameters)
         for value, reference in zip(actual, expected, strict=True):
             np.testing.assert_allclose(value, reference, rtol=3e-13, atol=3e-12)
@@ -1124,10 +1152,13 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
 
     def test_current_derivatives_do_not_couple_nonfinite_geometry(self) -> None:
         """Infinite geometry tangents do not reach currents; infinite current cotangents do not reach geometry DOFs."""
+        self.run_cases(self._case_current_derivatives_do_not_couple_nonfinite_geometry, _GEOMETRIES)
+
+    def _case_current_derivatives_do_not_couple_nonfinite_geometry(self, geometry: str) -> None:
         extraction, parameters = _mixed_problem()
 
         def currents(values: jax.Array) -> jax.Array:
-            return stage_two_coil_geometry(extraction, values)[3]
+            return _GEOMETRY_FUNCTIONS[geometry](extraction, values)[3]
 
         tangent = jnp.zeros_like(parameters).at[0].set(jnp.inf)
         _, current_tangent = jax.jvp(currents, (parameters,), (tangent,))
@@ -1138,14 +1169,17 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
 
     def test_geometry_jvp_preserves_explicit_transfer_placement(self) -> None:
         """The compiled geometry JVP runs with host-to-device transfers disallowed."""
+        self.run_cases(self._case_geometry_jvp_preserves_explicit_transfer_placement, _GEOMETRIES)
+
+    def _case_geometry_jvp_preserves_explicit_transfer_placement(self, geometry: str) -> None:
         extraction, parameters = _mixed_problem()
         tangent = jnp.ones_like(parameters)
+        geometry_function = _GEOMETRY_FUNCTIONS[geometry]
 
         @jit
         def evaluate(spec: CoilSetDofExtractionSpec, values: jax.Array, direction: jax.Array) -> tuple[
                 tuple[jax.Array, jax.Array, jax.Array, jax.Array], tuple[jax.Array, jax.Array, jax.Array, jax.Array]]:
-            return jax.jvp(lambda current_values: stage_two_coil_geometry(spec, current_values), (values,),
-                           (direction,))
+            return jax.jvp(lambda current_values: geometry_function(spec, current_values), (values,), (direction,))
 
         # The compiled workflow takes every spec leaf explicitly. No warmup or
         # captured host constants may hide transfers on the first guarded call.
@@ -1154,12 +1188,15 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
 
     def test_homogeneous_geometry_batches_fourier_dot_graph(self) -> None:
         """Identical curve layouts share one batched Fourier contraction instead of one per curve."""
+        self.run_cases(self._case_homogeneous_geometry_batches_fourier_dot_graph, _GEOMETRIES)
+
+    def _case_homogeneous_geometry_batches_fourier_dot_graph(self, geometry: str) -> None:
         extraction, parameters = _mixed_problem()
         first = extraction.coils[0]
         homogeneous = make_coil_set_dof_extraction_spec(tuple(_with_curve_mapping(first, first.curve_map, index)
                                                               for index in range(4)))
         scalar = jax.make_jaxpr(_scalar_geometry)(homogeneous, parameters)
-        batched = jax.make_jaxpr(stage_two_coil_geometry)(homogeneous, parameters)
+        batched = jax.make_jaxpr(_GEOMETRY_FUNCTIONS[geometry])(homogeneous, parameters)
         # Owner-map matvecs remain per curve. Only Fourier contractions have two
         # matrix operands; their batch metadata must identify the new mapped axis.
         scalar_dots, batched_dots = (
@@ -1176,6 +1213,9 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
         """Compiled coil currents and their JVP and VJP match native currents with transfers disallowed."""
         # Match the plain-current native fixture of the source eager AD oracle;
         # affine term assembly is a separate preexisting placement boundary.
+        self.run_cases(self._case_compiled_current_derivatives_match_native_under_transfer_guard, _GEOMETRIES)
+
+    def _case_compiled_current_derivatives_match_native_under_transfer_guard(self, geometry: str) -> None:
         curves = create_equally_spaced_curves(2, 2, True, R0=1.0, R1=0.25, order=1, numquadpoints=8)
         native_currents = [Current(1.0e5), Current(1.1e5)]
         native_currents[0].fix_all()
@@ -1188,12 +1228,13 @@ class StageTwoGeometryBatchingTests(JaxTestCase):
         current_cotangent = jnp.array(weights)
         native_values = np.asarray([coil.current.get_value() for coil in coils])
         native_jacobian = np.stack([coil.current.vjp(np.ones(1))(field) for coil in coils])
+        geometry_function = _GEOMETRY_FUNCTIONS[geometry]
 
         @jit
         def evaluate(spec: CoilSetDofExtractionSpec, values: jax.Array, direction: jax.Array,
                      weights: jax.Array) -> tuple[jax.Array, jax.Array, jax.Array]:
             def currents(current_values: jax.Array) -> jax.Array:
-                return stage_two_coil_geometry(spec, current_values)[3]
+                return geometry_function(spec, current_values)[3]
 
             current_values, pushforward = jax.linearize(currents, values)
             current_tangent = pushforward(direction)
