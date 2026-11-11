@@ -8,6 +8,7 @@ with optional_jax_imports():
     import simsopt_jax  # noqa: F401
     import jax
     import jax.numpy as jnp
+    from jax.extend.core import jaxprs_in_params
     from simsopt_jax.backend import set_backend
     from simsopt_jax.backend.jit import jit
     from simsopt_jax.core import biotsavart as core_biotsavart
@@ -18,7 +19,7 @@ with optional_jax_imports():
     from simsopt_jax_adapters.field import biotsavart_backend as backend
     from simsopt_jax_adapters.field.biotsavart_backend import BiotSavartFieldPullback, JaxBiotSavart
     from simsopt_jax_adapters.field.biotsavart_backend import _owner_segments_from_free_positions
-    from simsopt_jax_adapters.field.biotsavart_backend import _per_coil_unit_field
+    from simsopt_jax_adapters.field.biotsavart_backend import _per_coil_unit_field, _per_coil_unit_field_with_batch_size
     from simsopt_jax_adapters.geo.curve_specs import curve_spec_from_adapter_curve
 
 import copy
@@ -216,6 +217,45 @@ def _jax_filament_geometry(frame, quadpoints):
 # Fused B and dB/dX against autodiff: about 45 ulp (measured worst 2e-15 integrand).
 _ROUND_OFF = 1e-14
 
+# (name, coil_chunk_size, quadrature_block_size, loop trip counts) for 5 coils of
+# 24 nodes. One or two blocks or chunks have no loop; three or more loop over the
+# full ones and add the tail (coil_chunk_tail: two 2-coil chunks, each traced in
+# the loop body and the 1-coil tail, over three 7-node blocks).
+_TILINGS = (
+    ("two_quadrature_blocks", 0, 16, ()),
+    ("three_quadrature_blocks_and_tail", 0, 7, (3,)),
+    ("two_coil_chunks", 3, 16, ()),
+    ("coil_chunk_tail", 2, 7, (2, 3, 3)),
+)
+
+_FORWARD_KERNELS = (
+    ("B", "VALUE"),
+    ("B", "JACOBIAN"),
+    ("A", "VALUE"),
+    ("A", "JACOBIAN"),
+    ("B", "HESSIAN"),
+    ("A", "HESSIAN"),
+    ("B", "VALUE_AND_JACOBIAN"),
+)
+
+# Measured |tiled - untiled| <= 4.5e-16 (CPU), 5.5e-16 (RTX 5090) times |untiled| +
+# max|untiled| (JAX 0.12.0.1); without that floor, 3.6e-12 on entries that cancel.
+# 1e-14 (45 eps) allows other summation orders and FMA; one node more or less
+# moves each forward kernel by at least 1.7% of its largest entry.
+_BLOCK_PARITY_RTOL = 1e-14
+
+# 5 coils of 24 random nodes, every coordinate 0.5 to 1.5 in magnitude, so at
+# least 0.2 per coordinate from the 11 points in [-0.3, 0.3]^3.
+_RNG = np.random.default_rng(20261105)
+_COIL_SHAPE = (5, 24, 3)
+_GAMMAS = _RNG.uniform(0.5, 1.5, _COIL_SHAPE) * _RNG.choice((-1.0, 1.0), _COIL_SHAPE)
+_GAMMADASHS = _RNG.standard_normal(_COIL_SHAPE)
+_CURRENTS = _RNG.uniform(0.5, 1.5, 5) * 1e4
+_BLOCK_POINTS = _RNG.uniform(-0.3, 0.3, (11, 3))
+_BLOCK_COTANGENT = _RNG.standard_normal((11, 3))
+_FORWARD_INPUTS = (_BLOCK_POINTS, _GAMMAS, _GAMMADASHS, _CURRENTS)
+_VJP_INPUTS = (_BLOCK_POINTS, _BLOCK_COTANGENT, _GAMMAS, _GAMMADASHS, _CURRENTS)
+
 
 def _forward_kernel(integrand, diff_mode, coil_chunk, quadrature_block, point_chunk=0):
     return core_biotsavart._make_kernel(
@@ -227,6 +267,45 @@ def _forward_kernel(integrand, diff_mode, coil_chunk, quadrature_block, point_ch
     )
 
 
+def _loop_trip_counts(jaxpr):
+    """Sorted trip counts of the scans (static ``fori_loop``s) in ``jaxpr`` and its sub-jaxprs."""
+    return tuple(
+        sorted(
+            [eqn.params["length"] for eqn in jaxpr.eqns if eqn.primitive.name == "scan"]
+            + [
+                count
+                for eqn in jaxpr.eqns
+                for sub_jaxpr in jaxprs_in_params(eqn.params)
+                for count in _loop_trip_counts(sub_jaxpr)
+            ]
+        )
+    )
+
+
+# These return NumPy values, so a test row holds no JAX object when its case cleans up.
+def _loops_and_result(kernel, inputs):
+    """Trace ``kernel`` once; return its loop trip counts and its compiled result."""
+    traced = kernel.trace(*inputs)
+    result = traced.lower().compile()(*inputs)
+    return _loop_trip_counts(traced.jaxpr.jaxpr), jax.tree.map(np.asarray, result)
+
+
+def _B_vjp(coil_chunk_size, quadrature_block_size):
+    kernel = core_biotsavart._make_B_vjp_kernel(coil_chunk_size, quadrature_block_size, 0)
+    return jax.tree.map(np.asarray, kernel(*_VJP_INPUTS))
+
+
+def _assert_results_match(tiled, untiled):
+    """Elementwise rtol with an absolute floor at rtol times the largest value."""
+    jax.tree.map(
+        lambda tiled_leaf, untiled_leaf: np.testing.assert_allclose(
+            tiled_leaf, untiled_leaf, rtol=_BLOCK_PARITY_RTOL, atol=_BLOCK_PARITY_RTOL * np.max(np.abs(untiled_leaf))
+        ),
+        tiled,
+        untiled,
+    )
+
+
 def _coil_set(rng):
     """Two unit circles of 12 nodes, the second shifted, with random currents."""
     phi = np.linspace(0.0, 2.0 * np.pi, 12, endpoint=False)
@@ -235,6 +314,57 @@ def _coil_set(rng):
     gammas = np.stack([circle + center for center in ((0.0, 0.0, 0.0), (0.3, 0.1, -0.2))])
     currents = rng.uniform(0.5, 1.5, size=2)
     return (jnp.asarray(gammas), jnp.asarray(np.stack([tangent] * 2)), jnp.asarray(currents))
+
+
+# Compiled form of the per-coil reductions. (coils, nodes, points): 5 coils is the
+# only length-5 axis (24 nodes pad to 32, 12-node blocks to 16, 20 points in 7-point
+# chunks). Tunings (coil chunk, quadrature block, point chunk): unblocked, and two
+# quadrature blocks as in the fast lane. The fast-lane tiling (31 coils, 128 nodes
+# in 64-node blocks, one 1024-point chunk) formed the A100 concatenate fusions.
+_LAYOUT_COIL_COUNT = 5
+_SIZES = (_LAYOUT_COIL_COUNT, 24, 20)
+_TUNINGS = ((0, 0, 7), (0, 12, 7))
+_FAST_LANE_SIZES = (31, 128, 1024)
+_FAST_LANE_TUNING = (0, 64, 1024)
+
+_FORWARD_DIFF_MODES = {"B": "VALUE", "dB_by_dX": "JACOBIAN"}
+
+
+def _kernel_and_arguments(kernel_name, tuning, sizes):
+    """Return one kernel and float64 shape structs of ``sizes`` for its inputs."""
+    coils, nodes, point_count = sizes
+
+    def spec(*shape):
+        return jax.ShapeDtypeStruct(shape, jnp.float64)
+
+    points, coil_data, currents = (spec(point_count, 3), spec(coils, nodes, 3), spec(coils))
+    if kernel_name == "B_vjp":
+        kernel = core_biotsavart._make_B_vjp_kernel(*tuning)
+        return kernel, (points, points, coil_data, coil_data, currents)
+    kernel = _forward_kernel("B", _FORWARD_DIFF_MODES[kernel_name], *tuning)
+    return kernel, (points, coil_data, coil_data, currents)
+
+
+def _per_coil_quadrature_sums(jaxpr, coil_count):
+    """Yield (squeezed reduce_sum keeping the coil axis, its readers or None if returned)."""
+    producers = {var: eqn for eqn in jaxpr.eqns for var in eqn.outvars}
+    for eqn in jaxpr.eqns:
+        if eqn.primitive.name == "squeeze" and coil_count in eqn.outvars[0].aval.shape:
+            source = producers.get(eqn.invars[0])
+            if source is not None and source.primitive.name == "reduce_sum":
+                (total,) = eqn.outvars
+                reads = [reader for reader in jaxpr.eqns if any(operand is total for operand in reader.invars)]
+                returned = any(result is total for result in jaxpr.outvars)
+                yield total, reads + [None] * returned
+        for sub_jaxpr in jaxprs_in_params(eqn.params):
+            yield from _per_coil_quadrature_sums(sub_jaxpr, coil_count)
+
+
+def _is_contraction(eqn):
+    """Whether ``eqn`` contracts a per-coil sum with a vector (currents, or its cotangent)."""
+    if eqn is None or eqn.primitive.name != "dot_general":
+        return False
+    return sorted(len(var.aval.shape) for var in eqn.invars)[0] == 1
 
 
 # Coil-DOF extraction maps.
@@ -436,6 +566,38 @@ class TestBiotSavartJaxNativeParity(JaxTestCase):
         with disallow_host_transfers():
             grad_abs_B = bs_jax.GradAbsB()
         np.testing.assert_array_equal(np.asarray(grad_abs_B), native.GradAbsB())
+
+    def test_per_current_derivatives_run_under_strict_transfer_guard(self):
+        """Per-coil unit-current accessors and their (coil-chunked) builder run under the strict guard."""
+        rows = (
+            ("B", "dB_by_dcoilcurrents", _DIRECT),
+            ("dB_by_dX", "d2B_by_dXdcoilcurrents", _FIRST),
+            ("d2B_by_dXdX", "d3B_by_dXdXdcoilcurrents", _SECOND),
+            ("A", "dA_by_dcoilcurrents", _DIRECT),
+            ("dA_by_dX", "d2A_by_dXdcoilcurrents", _FIRST),
+            ("d2A_by_dXdX", "d3A_by_dXdXdcoilcurrents", _SECOND),
+        )
+
+        def check(chunk_size):
+            """None calls the public accessors; an integer, their builder at that batch size."""
+            bs, bs_jax, _ = _ncsx_fields()
+            points, coil_set_spec = bs_jax.get_points_cart_ref(), bs_jax.coil_set_spec()
+            for cache_method, list_method, tol in rows:
+                kernel = getattr(core_biotsavart, "biot_savart_" + cache_method)
+                getattr(bs, cache_method)()
+                with disallow_host_transfers():
+                    if chunk_size is None:
+                        jax_list = getattr(bs_jax, list_method)()
+                    else:
+                        jax_list = _per_coil_unit_field_with_batch_size(
+                            points, coil_set_spec, kernel, batch_size=chunk_size
+                        )
+                cpu_list = getattr(bs, list_method)()
+                self.assertEqual(len(jax_list), len(cpu_list))
+                for k, (j_entry, c_entry) in enumerate(zip(jax_list, cpu_list)):
+                    _close(j_entry, c_entry, tol, f"{list_method} coil {k}")
+
+        self.run_cases(check, _grid(chunk_size=(None, 0, 7)))
 
     def test_B_vjp_parity_ncsx(self):
         """Native Biot-Savart parity on identical coils, points and cotangents."""
@@ -805,7 +967,7 @@ class TestBiotSavartJaxCurveAndCurrentTypes(JaxTestCase):
 
 
 class TestBiotSavartJaxKernelTiling(JaxTestCase):
-    """Tiled and fused kernels against untiled ones and autodiff."""
+    """Tiled and fused kernels against untiled ones and autodiff, and their compiled form."""
 
     def test_fused_B_and_dB_matches_autodiff_of_B(self):
         """The fused B + dB/dX integrand and tiled kernel equal B and its jacfwd to round-off."""
@@ -825,7 +987,8 @@ class TestBiotSavartJaxKernelTiling(JaxTestCase):
         }
 
         def B_integrand(x):
-            return core_biotsavart._biot_savart_B_integrand(x, gammas, gammadashs)
+            integrand = core_biotsavart._biot_savart_B_integrand(x, gammas, gammadashs)
+            return jnp.stack(integrand, axis=-1)
 
         def autodiff_integrand(x):
             # jacfwd gives [..., component, direction]; the fused integrand puts
@@ -858,6 +1021,33 @@ class TestBiotSavartJaxKernelTiling(JaxTestCase):
                 self.assertLess(worst(B_kernel, B_reference, -1), _ROUND_OFF)
                 self.assertLess(worst(dB_kernel, dB_reference, (-2, -1)), _ROUND_OFF)
 
+    def test_forward_kernels_take_their_paths_and_match_untiled(self):
+        """B, A, their Jacobians and Hessians and fused B/dB run each tiling's loops, match untiled."""
+        for integrand, diff_mode in _FORWARD_KERNELS:
+            kernel = {"integrand": integrand, "diff_mode": diff_mode}
+            # The reference is computed outside a subTest, so no row compares
+            # against another kernel's reference if computing it fails.
+            with self.case():
+                loops, untiled = _loops_and_result(_forward_kernel(integrand, diff_mode, 0, 0), _FORWARD_INPUTS)
+            with self.subTest(**kernel, tiling="untiled"):
+                self.assertEqual(loops, ())
+            for name, coil_chunk_size, quadrature_block_size, trip_counts in _TILINGS:
+                with self.subTest(**kernel, tiling=name), self.case():
+                    loops, tiled = _loops_and_result(
+                        _forward_kernel(integrand, diff_mode, coil_chunk_size, quadrature_block_size), _FORWARD_INPUTS
+                    )
+                    self.assertEqual(loops, trip_counts)
+                    _assert_results_match(tiled, untiled)
+
+    def test_B_vjp_matches_untiled_across_block_boundaries(self):
+        """B cotangents for positions, tangents and currents match untiled for every tiling."""
+        with self.case():
+            untiled = _B_vjp(0, 0)
+        for name, coil_chunk_size, quadrature_block_size, _ in _TILINGS:
+            with self.subTest(tiling=name), self.case():
+                tiled = _B_vjp(coil_chunk_size, quadrature_block_size)
+                _assert_results_match(tiled, untiled)
+
     def test_hessian_point_chunk_size_is_one_eighth_and_keeps_disabled(self):
         """Hessian tiles are one eighth of a positive point tuning, at least one; zero disables."""
 
@@ -884,6 +1074,40 @@ class TestBiotSavartJaxKernelTiling(JaxTestCase):
         b_and_db_untiled = _forward_kernel("B", "VALUE_AND_JACOBIAN", 0, 0, 0)(points, *coil_set)
         for tiled_leaf, untiled_leaf in zip(b_and_db_tiled, b_and_db_untiled, strict=True):
             np.testing.assert_array_equal(np.asarray(tiled_leaf), np.asarray(untiled_leaf))
+
+    def test_per_coil_quadrature_sums_feed_only_their_contraction(self):
+        """Each per-coil quadrature sum of traced B, dB/dX and B-VJP feeds only its contraction."""
+
+        def check(kernel, sizes, tuning):
+            coils, nodes, _ = sizes
+            traced_kernel, arguments = _kernel_and_arguments(kernel, tuning, sizes)
+            # disable_jit inlines jit calls and unrolls fori_loops, so each sum and
+            # every equation that reads it, in the VJP too, are in one jaxpr.
+            with jax.disable_jit():
+                traced = jax.make_jaxpr(traced_kernel)(*arguments)
+            sums = list(_per_coil_quadrature_sums(traced.jaxpr, coils))
+            # One sum per component and quadrature block for each traced point
+            # chunk and derivative pass; none found would make the guard vacuous.
+            block_size = tuning[1]
+            blocks = 1 if block_size <= 0 else (nodes + block_size - 1) // block_size
+            self.assertTrue(
+                sums and len(sums) % (3 * blocks) == 0,
+                f"{len(sums)} per-coil quadrature sums for 3 components x {blocks} blocks",
+            )
+            offending = [
+                f"{total.aval.shape} -> " + ", ".join("result" if eqn is None else eqn.primitive.name for eqn in reads)
+                for total, reads in sums
+                if not reads or not all(map(_is_contraction, reads))
+            ]
+            self.assertEqual(offending, [], "per-coil quadrature sums used before their contraction")
+
+        cases = ((_SIZES, _TUNINGS[0]), (_SIZES, _TUNINGS[1]), (_FAST_LANE_SIZES, _FAST_LANE_TUNING))
+        rows = [
+            dict(kernel=kernel, sizes=sizes, tuning=tuning)
+            for kernel in ("B", "dB_by_dX", "B_vjp")
+            for sizes, tuning in cases
+        ]
+        self.run_cases(check, rows)
 
 
 class TestBiotSavartJaxCoilDofMaps(JaxTestCase):

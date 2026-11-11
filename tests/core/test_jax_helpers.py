@@ -18,7 +18,7 @@ with optional_jax_imports():
     from simsopt_jax.core import field as core_field
     from simsopt_jax.core._device_scalars import device_one, placement_zero
     from simsopt_jax.core._math_utils import pairwise_sum_axis
-    from simsopt_jax.core.biotsavart import _radius_squared
+    from simsopt_jax.core.biotsavart import _radius_squared, _separation
     from simsopt_jax.core.biotsavart import biot_savart_A, biot_savart_B
     from simsopt_jax.core.biotsavart import biot_savart_dB_by_dX
     from simsopt_jax.core.curve_xyz_fourier import _constant_row
@@ -38,6 +38,13 @@ class TestKernelNumericHelpers(JaxTestCase):
         """Squared radius remains exactly zero at a coincident point."""
         radius_squared = _radius_squared(jnp.zeros((1, 3), dtype=jnp.float64))
         np.testing.assert_allclose(np.asarray(radius_squared), np.zeros((1,)))
+
+    def test_separation_preserves_zero_singularity(self):
+        """A coincident point gives zero components and a zero squared radius."""
+        x = jnp.asarray([0.25, -0.5, 1.0], dtype=jnp.float64)
+        components, radius_squared = _separation(x, jnp.reshape(x, (1, 1, 3)))
+        for value in (*components, radius_squared):
+            np.testing.assert_array_equal(np.asarray(value), np.zeros((1, 1)))
 
     def test_biot_savart_public_kernels_preserve_point_singularity(self):
         """The public A, B and dB/dX kernels keep the filament singularity."""
