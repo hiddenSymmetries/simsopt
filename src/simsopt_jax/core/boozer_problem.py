@@ -375,6 +375,59 @@ def boozer_penalty_constraints(
     return result[0] if derivatives == 0 else result
 
 
+@partial(jit, static_argnames=_STATIC_OPTIONS)
+def boozer_penalty_residual(
+    problem: BoozerProblem,
+    x: jax.Array,
+    *,
+    derivatives: int = 0,
+    optimize_G: bool = False,
+    weight_inv_modB: bool = True,
+) -> tuple[jax.Array, ...]:
+    """Evaluate normalized penalty residuals and optional derivatives.
+
+    Args:
+        problem (BoozerProblem): Surface, coil and label snapshot with native units and
+            DOF ordering.
+        x (jax.Array): Shape (nx,) full DOFs (m), iota (dimensionless), and optional
+            G (T m), cast to float64; nx = nsurface + 1 + int(optimize_G).
+        derivatives (int): Derivative order, 0 for values, 1 to add first derivatives,
+            or 2 to add second derivatives.
+        optimize_G (bool): Include G as the last decision variable; otherwise use mu0
+            times the sum of absolute coil currents.
+        weight_inv_modB (bool): Divide each point's Boozer residual by the field
+            magnitude in teslas.
+
+    Returns:
+        tuple[jax.Array, ...]: Residual shape (nr,), optionally Jacobian (nr, nx) and
+            Hessians (nr, nx, nx), where nr = 3 * npoints + 2. Boozer entries are
+            divided by sqrt(3 * npoints); the label and z entries are multiplied by
+            sqrt(constraint_weight). Half the squared norm equals
+            :func:`boozer_penalty_constraints`.
+
+    Raises:
+        ValueError: If ``derivatives`` is not 0, 1 or 2, or the problem has no
+            ``constraint_weight``.
+        TypeError: If a transform traces ``x`` for ``derivatives >= 1``, even with
+            a zero tangent.
+    """
+
+    x = _decision_vector(x, "boozer_penalty_residual", derivatives)
+
+    def residuals(point):
+        residual, label_residual, z_residual = _penalty_terms(
+            problem,
+            point,
+            optimize_G=optimize_G,
+            weight_inv_modB=weight_inv_modB,
+            order=derivatives,
+        )
+        scale = np.sqrt(residual.shape[0])
+        return jnp.concatenate((residual / scale, jnp.stack((label_residual, z_residual))))
+
+    return residual_derivatives(residuals, x, derivatives)
+
+
 @partial(jit, static_argnames=("derivatives", "optimize_G"))
 def boozer_exact_constraints(
     problem: BoozerProblem,
