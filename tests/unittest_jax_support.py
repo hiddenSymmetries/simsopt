@@ -40,6 +40,7 @@ def optional_jax_imports() -> Iterator[None]:
 
 
 with optional_jax_imports():
+    from simsopt_jax.backend.dtypes import explicit_device_array
     from simsopt_jax.backend.runtime import _export_xla_flag_defaults
     from simsopt_jax.backend.runtime import get_backend_config, set_backend
     from simsopt_jax.backend.runtime import host_array as _host_array
@@ -274,3 +275,24 @@ def run_fresh_process(
 def host_array(value, *, dtype=None) -> np.ndarray:
     """Defined without JAX so test modules import it outside ``optional_jax_imports``."""
     return _host_array(value, dtype=dtype)
+
+
+def place_float64(values, reference: jax.Array) -> jax.Array:
+    """``values`` as a float64 array placed like ``reference``."""
+    return explicit_device_array(values, dtype=np.float64, reference=reference)
+
+
+@contextmanager
+def jax_compilations() -> Iterator[list[str]]:
+    """Names of the JAX trace, lowering and compile events inside the block."""
+    events: list[str] = []
+
+    def record(event: str, duration_secs: float, **kwargs: str | int) -> None:
+        if event.startswith("/jax/core/compile/"):
+            events.append(event)
+
+    jax.monitoring.register_event_duration_secs_listener(record)
+    try:
+        yield events
+    finally:
+        jax.monitoring.unregister_event_duration_listener(record)
