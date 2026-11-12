@@ -126,6 +126,9 @@ class Testing(unittest.TestCase):
             kwargs['reg_l0'] = 0.0
             kwargs['epsilon_RS'] = 1e5
             relax_and_split(pm_opt, **kwargs)
+            # A verbose MwPGP run with max_iter < 5 would divide by zero in C++
+            with self.assertRaises(ValueError):
+                relax_and_split(pm_opt, **{**kwargs, 'verbose': True, 'max_iter': 4})
 
             # Test that all the GPMO variants return the same solutions
             # in various limits.
