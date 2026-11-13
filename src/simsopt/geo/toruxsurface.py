@@ -54,7 +54,14 @@ class ToruxSurface(Optimizable):
     without stellarator symmetry, so the adjoint machinery of :obj:`~simsopt.geo.BoozerSurface`
     applies unchanged: ``res['PLU']`` is the LU factorization of the Jacobian of these equations and
     ``res['vjp']`` their vector-Jacobian product with respect to the coils. :math:`G` is not an
-    unknown, and ``res['G']`` is None.
+    unknown, and ``res['G']`` is None. torux solves on one field period, so the derivatives with
+    respect to the coils are exact for coils whose copies share their degrees of freedom, as
+    :obj:`~simsopt.field.coils_via_symmetries` builds them.
+
+    Where a flux surface exists, it is the surface a :obj:`~simsopt.geo.QfmSurface` approximates. A
+    QFM surface minimizes the quadratic flux over surfaces whose parameterization is free. Here the
+    angles are fixed, which removes that nonuniqueness and leaves a square system for Newton's
+    method. Where no flux surface exists, these equations have no solution.
 
     The angles are not Boozer angles. Objectives that need Boozer angles,
     :obj:`~simsopt.geo.NonQuasiSymmetricRatio` and :obj:`~simsopt.geo.BoozerResidual`, do not
