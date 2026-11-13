@@ -92,6 +92,130 @@ class QuasisymmetryRatioResidualWoutTests(unittest.TestCase):
         np.testing.assert_allclose(r.B_cross_grad_B_dot_grad_psi,
                                    r.d_psi_d_s * (r.bsubu * r.d_B_d_phi - r.bsubv * r.d_B_d_theta) / r.sqrtg)
 
+    def test_non_stellsym_angle_shift(self):
+        """
+        Verify that poloidal and toroidal angle shifts introduce sine
+        coefficients without changing the total quasisymmetry error.
+        """
+        coefficients = [
+            ('bmnc', 'bmns'),
+            ('gmnc', 'gmns'),
+            ('bsubumnc', 'bsubumns'),
+            ('bsubvmnc', 'bsubvmns'),
+            ('bsupumnc', 'bsupumns'),
+            ('bsupvmnc', 'bsupvmns'),
+        ]
+        fields = [
+            'modB', 'd_B_d_theta', 'd_B_d_phi', 'sqrtg',
+            'bsubu', 'bsubv', 'bsupu', 'bsupv', 'residuals3d',
+        ]
+
+        for axis in (1, 2):
+            with self.subTest(axis=axis):
+                vmec = Vmec(os.path.join(
+                    TEST_DIR, 'wout_li383_low_res_reference.nc'
+                ))
+                qs = QuasisymmetryRatioResidual(
+                    vmec, [0.3, 0.7], helicity_m=1, helicity_n=1,
+                    ntheta=63, nphi=64
+                )
+                reference = qs.compute()
+                shift = 5
+
+                if axis == 1:
+                    angle = (
+                        vmec.wout.xm_nyq[:, None]
+                        * shift * reference.dtheta
+                    )
+                else:
+                    angle = (
+                        -vmec.wout.xn_nyq[:, None]
+                        * shift * reference.dphi
+                    )
+
+                for cosine_name, sine_name in coefficients:
+                    cosine = getattr(vmec.wout, cosine_name).copy()
+                    setattr(
+                        vmec.wout, cosine_name, cosine * np.cos(angle)
+                    )
+                    setattr(
+                        vmec.wout, sine_name, cosine * np.sin(angle)
+                    )
+
+                if axis == 2:
+                    # Ensure pure-toroidal sine modes are exercised.
+                    toroidal_modes = (
+                        (vmec.wout.xm_nyq == 0)
+                        & (vmec.wout.xn_nyq != 0)
+                    )
+                    self.assertGreater(
+                        np.max(np.abs(
+                            vmec.wout.bmns[toroidal_modes, 1:]
+                        )),
+                        0
+                    )
+
+                vmec.wout.lasym = True
+                shifted = qs.compute()
+
+                for field in fields:
+                    expected = np.roll(
+                        getattr(reference, field), shift, axis=axis
+                    )
+                    np.testing.assert_allclose(
+                        getattr(shifted, field), expected,
+                        rtol=1e-10, atol=1e-10,
+                        err_msg=field
+                    )
+
+                np.testing.assert_allclose(
+                    shifted.profile, reference.profile,
+                    rtol=1e-10, atol=1e-10
+                )
+                np.testing.assert_allclose(
+                    shifted.total, reference.total,
+                    rtol=1e-10, atol=1e-10
+                )
+
+    def test_non_stellsym_symmetric_limit(self):
+        """
+        Verify that zero sine coefficients recover the symmetric result.
+        """
+        vmec = Vmec(os.path.join(
+            TEST_DIR, 'wout_li383_low_res_reference.nc'
+        ))
+        self.assertFalse(vmec.wout.lasym)
+
+        qs = QuasisymmetryRatioResidual(vmec, [0.3, 0.7], 1, 1)
+        reference = qs.compute()
+
+        for cosine_name, sine_name in [
+            ('bmnc', 'bmns'),
+            ('gmnc', 'gmns'),
+            ('bsubumnc', 'bsubumns'),
+            ('bsubvmnc', 'bsubvmns'),
+            ('bsupumnc', 'bsupumns'),
+            ('bsupvmnc', 'bsupvmns'),
+        ]:
+            setattr(
+                vmec.wout, sine_name,
+                np.zeros_like(getattr(vmec.wout, cosine_name))
+            )
+
+        vmec.wout.lasym = True
+        result = qs.compute()
+
+        for field in [
+            'modB', 'd_B_d_theta', 'd_B_d_phi', 'sqrtg',
+            'bsubu', 'bsubv', 'bsupu', 'bsupv',
+            'B_dot_grad_B', 'B_cross_grad_B_dot_grad_psi',
+            'residuals3d', 'profile', 'total',
+        ]:
+            np.testing.assert_allclose(
+                getattr(result, field), getattr(reference, field),
+                rtol=1e-12, atol=1e-12, err_msg=field
+            )
+
 
 @unittest.skipIf(vmec is None, "vmec python package is not found")
 class QuasisymmetryRatioResidualTests(unittest.TestCase):
@@ -206,6 +330,58 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
             qs = QuasisymmetryRatioResidual(vmec, 0.5)
             logger.info(f'QuasisymmetryRatioResidual for a vacuum axisymmetric config with iota = 0: {qs.total()}')
             self.assertTrue(qs.total() < 1e-12)
+
+    def test_non_stellsym_geometry(self):
+        """
+        Compare real non-stellarator-symmetric VMEC output with
+        the independent reconstruction in vmec_compute_geometry.
+        """
+        with ScratchDir("."):
+            vmec = Vmec(os.path.join(
+                TEST_DIR, 'input.basic_non_stellsym'
+            ))
+            vmec.run()
+            self.assertTrue(vmec.wout.lasym)
+
+            for name in [
+                'bmns', 'gmns',
+                'bsubumns', 'bsubvmns',
+                'bsupumns', 'bsupvmns',
+            ]:
+                self.assertGreater(
+                    np.max(np.abs(getattr(vmec.wout, name)[:, 1:])),
+                    0
+                )
+
+            # Use half-grid nodes so linear and spline interpolation agree.
+            surfaces = vmec.s_half_grid[
+                [vmec.wout.ns // 3, 2 * vmec.wout.ns // 3]
+            ]
+            qs = QuasisymmetryRatioResidual(
+                vmec, surfaces, 1, 1, ntheta=31, nphi=32
+            )
+            result = qs.compute()
+            geometry = vmec_compute_geometry(
+                vmec, surfaces, result.theta1d, result.phi1d
+            )
+
+            for qs_name, geometry_name in [
+                ('modB', 'modB'),
+                ('d_B_d_theta', 'd_B_d_theta_vmec'),
+                ('d_B_d_phi', 'd_B_d_phi'),
+                ('sqrtg', 'sqrt_g_vmec'),
+                ('bsubu', 'B_sub_theta_vmec'),
+                ('bsubv', 'B_sub_phi'),
+                ('bsupu', 'B_sup_theta_vmec'),
+                ('bsupv', 'B_sup_phi'),
+            ]:
+                with self.subTest(field=qs_name):
+                    np.testing.assert_allclose(
+                        getattr(result, qs_name),
+                        getattr(geometry, geometry_name),
+                        rtol=1e-10, atol=1e-10,
+                        err_msg=qs_name
+                    )
 
 
 @unittest.skipIf((MPI is None) or (vmec is None), "Valid Python interface to VMEC not found")
