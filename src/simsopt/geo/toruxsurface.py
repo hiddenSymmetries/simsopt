@@ -26,12 +26,15 @@ class ToruxSurface(Optimizable):
 
         .. math::
 
-            R(\theta, \phi) = \sum_{m,n} r_{c,m,n} \cos(m\theta - n_{\text{fp}} n \phi), \quad
-            Z(\theta, \phi) = \sum_{m,n} z_{s,m,n} \sin(m\theta - n_{\text{fp}} n \phi),
+            R(\theta, \phi) = \sum_{m,n} r_{c,m,n} \cos(m\theta - n_{\text{fp}} n \phi)
+                + r_{s,m,n} \sin(m\theta - n_{\text{fp}} n \phi), \quad
+            Z(\theta, \phi) = \sum_{m,n} z_{c,m,n} \cos(m\theta - n_{\text{fp}} n \phi)
+                + z_{s,m,n} \sin(m\theta - n_{\text{fp}} n \phi),
 
-    where :math:`\phi` is the cylindrical angle and :math:`\theta` the poloidal angle in which field
-    lines are straight on the surface. Its unknowns are the coefficients :math:`r_{c,m,n}` and
-    :math:`z_{s,m,n}` and the rotational transform :math:`\iota`. A field line on the surface obeys
+    with :math:`r_{s,m,n} = z_{c,m,n} = 0` for a stellarator symmetric surface, where :math:`\phi`
+    is the cylindrical angle and :math:`\theta` the poloidal angle in which field lines are straight
+    on the surface. Its unknowns are the coefficients of ``surface`` and the rotational transform
+    :math:`\iota`. A field line on the surface obeys
 
         .. math::
 
@@ -39,20 +42,26 @@ class ToruxSurface(Optimizable):
             Z_\phi + \iota Z_\theta = R B_Z / B_\phi,
 
     and torux solves the Galerkin projection of these two equations together with the toroidal
-    flux constraint :math:`\Psi = \Psi_0` by Newton's method, at a resolution it chooses. At equal
-    ``mpol`` and ``ntor``, the surface has about two thirds of the degrees of freedom of a
-    stellarator symmetric :obj:`~simsopt.geo.SurfaceXYZTensorFourier`.
+    flux constraint :math:`\Psi = \Psi_0` by Newton's method, at a resolution it chooses. Without
+    stellarator symmetry, the origin of :math:`\theta` is free and one projected equation is implied
+    by the others up to the truncation, since the flux of :math:`\mathbf B` out of any closed
+    surface is zero: a phase condition fixes the origin to that of torux's own surface, and the
+    implied equation is eliminated with the multiplier torux carries for it, so that there are as
+    many equations as unknowns. At equal ``mpol`` and ``ntor``, the surface has about two thirds of
+    the degrees of freedom of a :obj:`~simsopt.geo.SurfaceXYZTensorFourier` with the same symmetry.
 
-    The unknowns of torux's equations are ``[surface.get_dofs(), iota]`` in this order, so the
-    adjoint machinery of :obj:`~simsopt.geo.BoozerSurface` applies unchanged: ``res['PLU']`` is the
-    LU factorization of the Jacobian of these equations and ``res['vjp']`` their vector-Jacobian
-    product with respect to the coils. :math:`G` is not an unknown, and ``res['G']`` is None.
+    The unknowns of torux's equations are ``[surface.get_dofs(), iota]`` in this order, with or
+    without stellarator symmetry, so the adjoint machinery of :obj:`~simsopt.geo.BoozerSurface`
+    applies unchanged: ``res['PLU']`` is the LU factorization of the Jacobian of these equations and
+    ``res['vjp']`` their vector-Jacobian product with respect to the coils. :math:`G` is not an
+    unknown, and ``res['G']`` is None.
 
     The angles are not Boozer angles. Objectives that need Boozer angles,
     :obj:`~simsopt.geo.NonQuasiSymmetricRatio` and :obj:`~simsopt.geo.BoozerResidual`, do not
     accept a ToruxSurface.
 
-    torux is an optional dependency (``pip install torux``, version 0.1.1 or newer, Python 3.12 or newer).
+    torux is an optional dependency (``pip install torux``, Python 3.12 or newer): version 0.1.1 or
+    newer for stellarator symmetric surfaces, 0.1.3 or newer without stellarator symmetry.
 
     *[1]: P. Bogdan, torux, https://github.com/philippbogdan/torux*
     """
@@ -61,8 +70,9 @@ class ToruxSurface(Optimizable):
         """
         Args:
             biotsavart (:obj:`~simsopt.field.BiotSavart`): BiotSavart object.
-            surface (:obj:`~simsopt.geo.SurfaceRZFourier`): stellarator symmetric surface. Its ``mpol``
-                and ``ntor`` fix the resolution of the solution, and its quadrature points are kept.
+            surface (:obj:`~simsopt.geo.SurfaceRZFourier`): the surface, with or without stellarator
+                symmetry. Its ``mpol`` and ``ntor`` fix the resolution of the solution, and its quadrature
+                points are kept.
             label (:obj:`~simsopt.geo.ToroidalFlux`): the toroidal flux through the surface, the only
                 label torux's equations take.
             targetlabel (float): the target value of the toroidal flux, in Wb.
@@ -82,8 +92,8 @@ class ToruxSurface(Optimizable):
                                "(Python 3.12 or newer).")
         super().__init__(depends_on=[biotsavart])
 
-        if not isinstance(surface, SurfaceRZFourier) or not surface.stellsym:
-            raise ValueError("The input surface must be a stellarator symmetric SurfaceRZFourier.")
+        if not isinstance(surface, SurfaceRZFourier):
+            raise ValueError("The input surface must be a SurfaceRZFourier.")
         if not isinstance(label, ToroidalFlux):
             raise ValueError("The label must be a ToroidalFlux: torux's equations constrain the toroidal flux.")
 
@@ -152,24 +162,36 @@ class ToruxSurface(Optimizable):
             if self.options['verbose']:
                 print(f"torux - {answer.status}", flush=True)
             return res
-        if hasattr(t, "rs") or t.phi0 != 0 or t.nfp != s.nfp:
-            raise RuntimeError(f"torux found a surface without stellarator symmetry about phi = 0, or with "
-                               f"{t.nfp} field periods: a ToruxSurface needs nfp={s.nfp} and stellsym=True.")
+        if t.nfp != s.nfp:
+            raise RuntimeError(f"torux found a surface with {t.nfp} field periods, and the surface has nfp={s.nfp}.")
+        if s.stellsym and (hasattr(t, "rs") or t.phi0 != 0):
+            raise RuntimeError("torux found a surface without stellarator symmetry about phi = 0: a ToruxSurface of "
+                               "it needs a SurfaceRZFourier with stellsym=False.")
+        if not s.stellsym and not hasattr(answer, "system_general"):
+            raise RuntimeError("A ToruxSurface without stellarator symmetry needs torux 0.1.3 or newer "
+                               "('pip install -U torux').")
 
-        # torux's solution at the resolution of the surface
+        # torux's solution at the resolution of the surface, in the series of the cylindrical angle
         mpol, ntor = s.mpol, s.ntor
-        rc = np.zeros((mpol + 1, 2 * ntor + 1))
-        zs = np.zeros((mpol + 1, 2 * ntor + 1))
         m, n = min(mpol, t.M), min(ntor, t.N)
-        rc[:m + 1, ntor - n:ntor + n + 1] = t.rc[:m + 1, t.N - n:t.N + n + 1]
-        zs[:m + 1, ntor - n:ntor + n + 1] = t.zs[:m + 1, t.N - n:t.N + n + 1]
-        s.rc[:] = rc
-        s.zs[:] = zs
+        if s.stellsym:
+            names, coefs = ("rc", "zs"), (t.rc, t.zs)
+        else:
+            names, coefs = ("rc", "rs", "zc", "zs"), _series_in_phi(t)
+        for name, c in zip(names, coefs):
+            a = np.zeros((mpol + 1, 2 * ntor + 1))
+            a[:m + 1, ntor - n:ntor + n + 1] = np.asarray(c)[:m + 1, t.N - n:t.N + n + 1]
+            getattr(s, name)[:] = a
         s.set_dofs(s.get_dofs())
         x = np.concatenate((s.get_dofs(), [t.iota]))
 
+        def system(iota):
+            if s.stellsym:
+                return answer.system(s.rc, s.zs, iota)
+            return answer.system_general(s.rc, s.rs, s.zc, s.zs, iota)
+
         i = 0
-        r, J = answer.system(s.rc, s.zs, x[-1])
+        r, J = system(x[-1])
         norm = np.linalg.norm(r, ord=np.inf)
         while i < self.options['newton_maxiter'] and norm > self.options['newton_tol']:
             lu_piv = lu_factor(J)
@@ -177,7 +199,7 @@ class ToruxSurface(Optimizable):
             dx += lu_solve(lu_piv, r - J @ dx)
             x = x - dx
             s.set_dofs(x[:-1])
-            r, J = answer.system(s.rc, s.zs, x[-1])
+            r, J = system(x[-1])
             norm = np.linalg.norm(r, ord=np.inf)
             i += 1
 
@@ -194,12 +216,30 @@ class ToruxSurface(Optimizable):
         return res
 
 
+def _series_in_phi(t):
+    r"""
+    The coefficients ``rc, rs, zc, zs`` of torux's surface ``t`` in the series of the cylindrical
+    angle, :math:`\cos(m\theta - n_{\text{fp}} n \phi)` and :math:`\sin(m\theta - n_{\text{fp}} n \phi)`:
+    torux writes its series in :math:`\phi - \phi_0`, with :math:`\phi_0` the plane of a stellarator
+    symmetric surface, and ``rs`` and ``zc`` are zero for such a surface.
+    """
+    rc, zs = np.asarray(t.rc, dtype=float), np.asarray(t.zs, dtype=float)
+    rs = np.asarray(t.rs, dtype=float) if hasattr(t, "rs") else np.zeros_like(rc)
+    zc = np.asarray(t.zc, dtype=float) if hasattr(t, "zc") else np.zeros_like(rc)
+    if t.phi0 == 0:
+        return rc, rs, zc, zs
+    # cos(a + d) = cos(a) cos(d) - sin(a) sin(d) and sin(a + d) = sin(a) cos(d) + cos(a) sin(d), d = n nfp phi0
+    d = np.arange(-t.N, t.N + 1)[None, :] * t.nfp * t.phi0
+    cd, sd = np.cos(d), np.sin(d)
+    return rc * cd + rs * sd, rs * cd - rc * sd, zc * cd + zs * sd, zs * cd - zc * sd
+
+
 def toruxsurface_dresidual_dcoils_vjp(lm, torux_surface, iota, G):
     r"""
     The vector-Jacobian product :math:`\lambda^T \partial \mathbf F / \partial \text{coils}` of the
-    residual :math:`\mathbf F` of torux's equations (the Galerkin residuals and the flux
-    constraint) with respect to the coil degrees of freedom and currents, at fixed surface
-    coefficients and rotational transform.
+    residual :math:`\mathbf F` of torux's equations (the Galerkin residuals, the flux constraint
+    and, without stellarator symmetry, the phase condition) with respect to the coil degrees of
+    freedom and currents, at fixed surface coefficients and rotational transform.
 
     torux holds each coil :math:`k` as a Fourier series :math:`\mathbf c_k` of order :math:`K`,
     whose values at the quadrature points of the curve are :math:`\Phi \mathbf c_k = \gamma_k`.
@@ -218,7 +258,10 @@ def toruxsurface_dresidual_dcoils_vjp(lm, torux_surface, iota, G):
     """
     res = torux_surface.res
     s = torux_surface.surface
-    v = res['answer'].vjp(s.rc, s.zs, res['iota'], lm)
+    if s.stellsym:
+        v = res['answer'].vjp(s.rc, s.zs, res['iota'], lm)
+    else:
+        v = res['answer'].vjp_general(s.rc, s.rs, s.zc, s.zs, res['iota'], lm)
     coef, current, d_coef, d_current = v['coef'], v['current'], v['d_coef'], v['d_current']
     coils = torux_surface.biotsavart.coils
     if coef.shape[0] != len(coils):
