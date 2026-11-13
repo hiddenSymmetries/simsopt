@@ -212,6 +212,14 @@ simsopt.geo.surfacexyztensorfourier module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.toruxsurface module
+-------------------------------
+
+.. automodule:: simsopt.geo.toruxsurface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.wireframe\_toroidal module
 --------------------------------------
 

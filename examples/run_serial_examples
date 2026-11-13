@@ -15,6 +15,7 @@ set -ex
 ./1_Simple/permanent_magnet_simple.py
 ./2_Intermediate/QSC.py
 ./2_Intermediate/boozer.py
+./2_Intermediate/torux_surface.py
 ./2_Intermediate/stage_two_optimization.py
 ./2_Intermediate/stage_two_optimization_planar_coils.py
 ./2_Intermediate/stage_two_optimization_stochastic.py

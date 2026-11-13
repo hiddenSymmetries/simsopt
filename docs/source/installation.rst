@@ -40,6 +40,8 @@ Also,
       properties of existing ``wout`` output files.
 - For computing Boozer coordinates:
     * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_
+- For computing flux surfaces with :obj:`~simsopt.geo.ToruxSurface` (Python 3.12 or newer):
+    * `torux <https://github.com/philippbogdan/torux>`_
 - For SPEC support:
     * `py_spec <https://github.com/PrincetonUniversity/SPEC/tree/master/Utilities/pythontools>`_
     * `pyoculus <https://github.com/zhisong/pyoculus>`_

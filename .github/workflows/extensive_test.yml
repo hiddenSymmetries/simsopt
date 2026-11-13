@@ -131,6 +131,10 @@ jobs:
     - name: Install desc-opt
       run: python -m pip install desc-opt
 
+    - name: Install torux
+      if: matrix.python-version != '3.10' && matrix.python-version != '3.11'
+      run: python -m pip install "torux>=0.1.1"
+
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
