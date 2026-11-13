@@ -16,7 +16,8 @@ This example computes a flux surface of the NCSX coils with torux, as a SurfaceR
 straight-field-line angles, and then changes the coils to raise the rotational transform on the
 surface by 2%, keeping its major radius and the length of the coils, as boozerQA.py does with a
 BoozerSurface. The derivatives of Iotas and MajorRadius with respect to the coils come from the
-adjoint of torux's equations.
+adjoint of torux's equations. For coils without stellarator symmetry, give the ToruxSurface a
+SurfaceRZFourier with stellsym=False.
 
 torux is an optional dependency: pip install torux (Python 3.12 or newer).
 """
