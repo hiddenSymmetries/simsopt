@@ -710,7 +710,8 @@ class NonQuasiSymmetricRatio(Optimizable):
 
     def __init__(self, boozer_surface, bs, sDIM=20, quasi_poloidal=False):
         # only SurfaceXYZTensorFourier for now
-        assert type(boozer_surface.surface) is SurfaceXYZTensorFourier
+        assert type(boozer_surface.surface) is SurfaceXYZTensorFourier, \
+            "NonQuasiSymmetricRatio needs a SurfaceXYZTensorFourier in Boozer angles, such as a BoozerSurface's"
 
         Optimizable.__init__(self, depends_on=[boozer_surface])
         in_surface = boozer_surface.surface
@@ -949,6 +950,8 @@ class BoozerResidual(Optimizable):
     """
 
     def __init__(self, boozer_surface, bs):
+        assert type(boozer_surface.surface) is SurfaceXYZTensorFourier, \
+            "BoozerResidual needs a SurfaceXYZTensorFourier in Boozer angles, such as a BoozerSurface's"
         Optimizable.__init__(self, depends_on=[boozer_surface])
         in_surface = boozer_surface.surface
         self.boozer_surface = boozer_surface

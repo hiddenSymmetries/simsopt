@@ -25,6 +25,7 @@ from .surfaceobjectives import *
 from .surfacerzfourier import *
 from .surfacexyzfourier import *
 from .surfacexyztensorfourier import *
+from .toruxsurface import *
 from .strain_optimization import *
 from .wireframe_toroidal import *
 from .ports import *
@@ -43,6 +44,7 @@ __all__ = (curve.__all__ + curvehelical.__all__ +
            surfacegarabedian.__all__ + surfacehenneberg.__all__ +
            surfacerzfourier.__all__ + surfacexyzfourier.__all__ +
            surfacexyztensorfourier.__all__ + surfaceobjectives.__all__ +
+           toruxsurface.__all__ +
            strain_optimization.__all__ + framedcurve.__all__ +
            wireframe_toroidal.__all__ + ports.__all__ +
            permanent_magnet_grid.__all__)
