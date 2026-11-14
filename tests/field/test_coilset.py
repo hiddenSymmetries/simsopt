@@ -6,6 +6,7 @@ from simsopt.configs import get_data
 import numpy as np
 from monty.tempfile import ScratchDir
 from simsopt import load, save
+from .graph_test_helpers import coil_graph, call_without_cyclic_gc
 
 
 class TestCoilSet(unittest.TestCase):
@@ -166,6 +167,20 @@ class TestCoilSet(unittest.TestCase):
         length = self.coilset.total_length
         self.assertIsNotNone(length)
         self.assertTrue(length > 0)
+
+    def test_total_length_registers_no_children(self):
+        """
+        total_length must not leave a temporary Optimizable registered with the coils' curves: it would be
+        freed only by a cyclic garbage collection and notified of every DOF change until then.
+        """
+        coilset = self.coilset
+        multiplicity = len(coilset.coils) / len(coilset.base_coils)
+        expected = (sum(CurveLength(coil.curve) for coil in coilset.base_coils) * multiplicity).J()
+        length, before, after = call_without_cyclic_gc(coil_graph(coilset.coils), lambda: coilset.total_length)
+        self.assertEqual(after, before, "total_length left children registered with the coils' curves")
+        np.testing.assert_array_equal(length, expected)
+        self.assertIs(type(length), type(expected))
+        self.assertEqual(length.dtype, expected.dtype)
 
     def test_coilset_to_vtk(self):
         with ScratchDir("."):

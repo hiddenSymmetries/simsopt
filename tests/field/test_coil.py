@@ -19,6 +19,7 @@ from simsopt.field.coil import Coil, RegularizedCoil, Current, ScaledCurrent, Cu
 from simsopt.field.coil import coils_to_makegrid, coils_to_focus, coils_to_vtk, load_coils_from_makegrid_file
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.selffield import regularization_circ
+from simsopt.geo.curveobjectives import CurveLength
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.configs import get_data
 from .graph_test_helpers import coil_graph, call_without_cyclic_gc
@@ -505,6 +506,21 @@ class CoilDiagnosticsGraphTesting(unittest.TestCase):
             with self.subTest(close=close):
                 _, before, after = call_without_cyclic_gc(self.graph, lambda: _vtk_point_data(self.coils, close))
                 self.assertEqual(after, before, "coils_to_vtk left children registered with the coil graph")
+
+    def test_coils_to_focus_registers_no_children(self):
+        curves = [c.curve for c in self.coils[:2]]
+        currents = [c.current for c in self.coils[:2]]
+        expected_lengths = ['{:23.15E}'.format(CurveLength(c).J()) for c in curves]
+
+        with ScratchDir("."):
+            _, before, after = call_without_cyclic_gc(
+                self.graph, lambda: coils_to_focus('test.focus', curves, currents, nfp=2, stellsym=True))
+            with open('test.focus') as f:
+                lines = f.read().splitlines()
+        self.assertEqual(after, before, "coils_to_focus left children registered with the coil graph")
+        header = '# Nseg current Ifree Length Lfree target_length '
+        rows = [lines[i + 1].split() for i, line in enumerate(lines) if line == header]
+        self.assertEqual([[row[3], row[5]] for row in rows], [[length.strip()] * 2 for length in expected_lengths])
 
 
 class CoilForceReferenceTesting(unittest.TestCase):

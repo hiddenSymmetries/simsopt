@@ -5,6 +5,7 @@ from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.curveobjectives import curve_length_pure
 import simsoptpp as sopp
 
 __all__ = ['Coil', 'RegularizedCoil', 'CircularRegularizedCoil', 'RectangularRegularizedCoil',
@@ -774,8 +775,6 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
         Ifree (bool, optional) : Whether the coil current is free (default: False).
         Lfree (bool, optional) : Whether the coil geometry is free (default: False).
     """
-    from simsopt.geo import CurveLength
-
     assert len(curves) == len(currents)
     ncoils = len(curves)
     if stellsym:
@@ -799,7 +798,7 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
             ys = np.concatenate(([0.], xyz[1, 1::2]))
             zc = xyz[2, ::2]
             zs = np.concatenate(([0.], xyz[2, 1::2]))
-            length = CurveLength(curves[i]).J()
+            length = curve_length_pure(curves[i].incremental_arclength())
             nseg = len(curves[i].quadpoints)
             f.write('#------------{:d}----------- \n'.format(i+1))
             f.write('# coil_type  symm  coil_name \n')
