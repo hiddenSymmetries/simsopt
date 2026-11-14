@@ -1,6 +1,7 @@
 import unittest
 import json
 from unittest.mock import patch
+from numpy.random import Generator, PCG64DXSM
 
 import numpy as np
 from monty.tempfile import ScratchDir
@@ -11,12 +12,16 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
 from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves, create_equally_spaced_planar_curves
+from simsopt.geo.curveperturbed import CurvePerturbed, GaussianSampler, PerturbationSample
+from simsopt.geo.finitebuild import CurveFilament
+from simsopt.geo.framedcurve import FramedCurveCentroid, ZeroRotation
 from simsopt.field.coil import Coil, RegularizedCoil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries
-from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_makegrid_file
+from simsopt.field.coil import coils_to_makegrid, coils_to_focus, coils_to_vtk, load_coils_from_makegrid_file
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.selffield import regularization_circ
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.configs import get_data
+from .graph_test_helpers import coil_graph, call_without_cyclic_gc
 
 try:
     import pyevtk
@@ -413,6 +418,142 @@ class CoilFormatConvertTesting(unittest.TestCase):
                 self.assertEqual(I.shape[0], p0 + p1)
                 np.testing.assert_allclose(I[:p0], i_a, err_msg=f"close={close} first coil")
                 np.testing.assert_allclose(I[p0 : p0 + p1], i_b, err_msg=f"close={close} second coil")
+
+
+def _force_reference(coil, source_coils):
+    """Pointwise force on ``coil``, with the mutual field from a simsopt ``BiotSavart``."""
+    gammadash = coil.curve.gammadash()
+    tangent = gammadash / np.linalg.norm(gammadash, axis=1)[:, None]
+    mutual_field = BiotSavart([c for c in source_coils if c is not coil]).set_points(coil.curve.gamma())
+    return coil.self_force() + np.cross(coil.current.get_value() * tangent, mutual_field.B())
+
+
+def _torque_reference(coil, force):
+    return np.cross(coil.curve.gamma() - coil.curve.centroid(), force)
+
+
+def _integrate_over_coil(coil, pointwise):
+    gammadash_norm = np.linalg.norm(coil.curve.gammadash(), axis=1)[:, None]
+    return np.sum(gammadash_norm * pointwise, axis=0) / gammadash_norm.shape[0]
+
+
+def _vtk_reference(coils, close):
+    """The force and torque arrays coils_to_vtk writes, from the BiotSavart reference."""
+    forces = [_force_reference(c, coils) for c in coils]
+    torques = [_torque_reference(c, f) for c, f in zip(coils, forces)]
+    npoints = [c.curve.gamma().shape[0] + int(close) for c in coils]
+    closed = (lambda a: np.vstack((a, a[:1]))) if close else (lambda a: a)
+    return {
+        "Pointwise_Forces": np.concatenate([closed(f) for f in forces]),
+        "Pointwise_Torques": np.concatenate([closed(t) for t in torques]),
+        "NetForces": np.repeat([_integrate_over_coil(c, f) for c, f in zip(coils, forces)], npoints, axis=0),
+        "NetTorques": np.repeat([_integrate_over_coil(c, t) for c, t in zip(coils, torques)], npoints, axis=0),
+    }
+
+
+def _vtk_point_data(coils, close):
+    with patch("simsopt.geo.curve.curves_to_vtk") as mock_vtk:
+        coils_to_vtk(coils, "unused", close=close)
+    point_data = mock_vtk.call_args.kwargs["extra_data"]
+    return {key: np.stack(point_data[key], axis=1) for key in _VTK_KEYS}
+
+
+_VTK_KEYS = ("Pointwise_Forces", "Pointwise_Torques", "NetForces", "NetTorques")
+
+
+def _regularized_xyz_coils(curve_class, ncoils=2):
+    coils = []
+    for i in range(ncoils):
+        curve = curve_class(30, 3)
+        dofs = np.zeros(curve.dof_size)
+        dofs[1], dofs[2 * 3 + 3] = 1.0, 1.0  # x = sin(phi), y = cos(phi): a unit circle
+        dofs[0], dofs[4 * 3 + 2] = 0.3 * i, 0.2 * i  # shifted in x and z
+        curve.x = dofs + 0.01 * np.random.default_rng(i).standard_normal(curve.dof_size)
+        coils.append(RegularizedCoil(curve, Current(1e5 * (1 + i)), regularization_circ(0.05)))
+    return coils
+
+
+def _symmetric_coils():
+    """Two regularized base coils and their images under nfp = 2 and stellarator symmetry."""
+    ncoils, nfp = 2, 2
+    curves = create_equally_spaced_curves(ncoils, nfp, True, R0=1.0, R1=0.5, order=3)
+    currents = [Current(1e5) for _ in range(ncoils)]
+    return coils_via_symmetries(curves, currents, nfp, True, regularizations=[regularization_circ(0.05)] * ncoils)
+
+
+class CoilDiagnosticsGraphTesting(unittest.TestCase):
+    """
+    Coil diagnostics and exports must not leave a temporary Optimizable registered as a child of the
+    coils, their curves or their currents. Such a temporary is only freed by a cyclic garbage collection,
+    and until then every DOF change of the coils notifies it. The cyclic collector is disabled while each
+    method runs so that a collection cannot hide a leftover.
+    """
+
+    def setUp(self):
+        self.coils = _symmetric_coils()
+        self.graph = coil_graph(self.coils)
+
+    def test_force_methods_register_no_children(self):
+        coil = self.coils[0]
+        for name in ("force", "torque", "net_force", "net_torque"):
+            with self.subTest(method=name):
+                _, before, after = call_without_cyclic_gc(self.graph, lambda: getattr(coil, name)(self.coils))
+                self.assertEqual(after, before, f"{name} left children registered with the coil graph")
+
+    def test_coils_to_vtk_registers_no_children(self):
+        for close in (False, True):
+            with self.subTest(close=close):
+                _, before, after = call_without_cyclic_gc(self.graph, lambda: _vtk_point_data(self.coils, close))
+                self.assertEqual(after, before, "coils_to_vtk left children registered with the coil graph")
+
+
+class CoilForceReferenceTesting(unittest.TestCase):
+    """``force``, ``torque``, ``net_force``, ``net_torque`` and the coils_to_vtk arrays equal the BiotSavart reference
+    bit for bit."""
+
+    def assert_matches_reference(self, coils, check_vtk=True):
+        for coil in [c for c in coils if isinstance(c, RegularizedCoil)]:
+            force = _force_reference(coil, coils)
+            torque = _torque_reference(coil, force)
+            np.testing.assert_array_equal(coil.force(coils), force)
+            np.testing.assert_array_equal(coil.torque(coils), torque)
+            np.testing.assert_array_equal(coil.net_force(coils), _integrate_over_coil(coil, force))
+            np.testing.assert_array_equal(coil.net_torque(coils), _integrate_over_coil(coil, torque))
+        if check_vtk:
+            for close in (False, True):
+                actual, expected = _vtk_point_data(coils, close), _vtk_reference(coils, close)
+                for key in _VTK_KEYS:
+                    np.testing.assert_array_equal(actual[key], expected[key], err_msg=f"{key} close={close}")
+
+    def test_symmetric_coils(self):
+        self.assert_matches_reference(_symmetric_coils())
+
+    def test_single_coil_without_mutual_sources(self):
+        self.assert_matches_reference(_regularized_xyz_coils(CurveXYZFourier, ncoils=1))
+
+    def test_jax_curves(self):
+        self.assert_matches_reference(_regularized_xyz_coils(JaxCurveXYZFourier))
+
+    def test_perturbed_curve(self):
+        coils = _regularized_xyz_coils(CurveXYZFourier)
+        sampler = GaussianSampler(coils[0].curve.quadpoints, 0.01, 0.5, n_derivs=2)
+        perturbed = CurvePerturbed(coils[0].curve, PerturbationSample(sampler, randomgen=Generator(PCG64DXSM(1))))
+        coils[0] = RegularizedCoil(perturbed, coils[0].current, regularization_circ(0.05))
+        self.assert_matches_reference(coils)
+
+    def test_filament_mutual_source(self):
+        coils = _regularized_xyz_coils(CurveXYZFourier)
+        source = coils[1].curve
+        filament = CurveFilament(FramedCurveCentroid(source, ZeroRotation(source.quadpoints)), 0.01, 0.01)
+        # coils_to_vtk needs force on every coil, which a filament (no self-force model) does not have
+        self.assert_matches_reference([coils[0], Coil(filament, Current(2e5))], check_vtk=False)
+
+    def test_after_dof_change(self):
+        coils = _regularized_xyz_coils(CurveXYZFourier)
+        self.assert_matches_reference(coils)
+        coils[1].curve.x = coils[1].curve.x + 0.01
+        coils[1].current.x = coils[1].current.x * 1.1
+        self.assert_matches_reference(coils)
 
 
 if __name__ == "__main__":

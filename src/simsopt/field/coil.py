@@ -150,12 +150,16 @@ class RegularizedCoil(Coil):
         Returns:
             array (shape (n,3)): Array of forces per unit length along the coil curve.
         """
-        from .biotsavart import BiotSavart
         gammadash = self.curve.gammadash()
         gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
         tangent = gammadash / gammadash_norm
         mutual_coils = [c for c in source_coils if c is not self]
-        mutual_field = BiotSavart(mutual_coils).set_points(self.curve.gamma())
+        # The C++ field runs the same kernel as simsopt's BiotSavart but is not an
+        # Optimizable, so it is not registered as a child of the coils and is freed
+        # on return. A BiotSavart would stay registered, and be notified of every DOF
+        # change, until the next cyclic garbage collection.
+        mutual_field = sopp.BiotSavart(mutual_coils)
+        mutual_field.set_points_cart(self.curve.gamma())
         B_mutual = mutual_field.B()
         mutualforce = np.cross(self.current.get_value() * tangent, B_mutual)
         selfforce = self.self_force()
