@@ -116,6 +116,13 @@ def taylor_test(obj):
 
 class DerivativeTests(unittest.TestCase):
 
+    def test_no_free_dofs(self):
+        """After all DOFs are fixed, the derivative is an empty array."""
+        opt = Opt(n=3)
+        derivative = Derivative({opt: np.ones(3)})
+        opt.fix_all()
+        np.testing.assert_array_equal(derivative(opt), np.zeros(0))
+
     def test_taylor_graph(self):
         # built a reasonably complex graph of two inputs, that both feed into
         # two intermediary results and then are combined into a final result.
