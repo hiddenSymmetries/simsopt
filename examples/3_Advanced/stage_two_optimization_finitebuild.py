@@ -21,8 +21,14 @@ The target equilibrium is the QA configuration of
     Magnetic fields with precise quasisymmetry for plasma confinement,
     Landreman, M., & Paul, E. (2022), Physical Review Letters, 128(3), 035001.
 
+Use --use-jax for the optional JAX field and objective adapters, which evaluate the whole
+objective as one compiled program; add --unfused to evaluate each term separately.
+Native execution is the default.
+JAX CI runs 10 iterations per stage; native CI runs 50.
+
 """
 
+import argparse
 import os
 import numpy as np
 from pathlib import Path
@@ -32,6 +38,31 @@ from simsopt.geo import (curves_to_vtk, create_equally_spaced_curves, create_mul
                          CurveLength, CurveCurveDistance, SurfaceRZFourier)
 from simsopt.objectives import QuadraticPenalty, SquaredFlux
 from simsopt.util import in_github_actions
+
+try:
+    from simsopt_jax_adapters.geo import JaxCurveCurveDistance, JaxCurveLength
+    from simsopt_jax_adapters.objectives import JaxFusedStageTwoObjective, JaxSquaredFlux
+    from simsopt_jax.backend import set_backend
+    from simsopt_jax_adapters.field import JaxBiotSavart
+except ImportError as error:
+    jax_import_error = str(error)
+else:
+    jax_import_error = None
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--use-jax", action="store_true", help="Use the optional JAX field and objective adapters")
+parser.add_argument("--device", choices=("cpu", "gpu"), default="cpu")
+parser.add_argument("--unfused", action="store_true",
+                    help="Evaluate each objective term separately instead of one compiled program; requires --use-jax")
+args = parser.parse_args()
+if args.unfused and not args.use_jax:
+    parser.error("--unfused requires --use-jax")
+fused = args.use_jax and not args.unfused
+if args.use_jax:
+    if jax_import_error is not None:
+        parser.error(f"--use-jax requires Python >= 3.12 and jax/jaxlib >= 0.12: {jax_import_error}")
+    set_backend("jax", device="gpu" if args.device == "gpu" else "cpu")
+
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -64,7 +95,7 @@ gapsize_b = 0.04  # gap between filaments in bi-normal direction
 rot_order = 1  # order of the Fourier expression for the rotation of the filament pack, i.e. maximum Fourier mode number
 
 # Number of iterations to perform:
-MAXITER = 50 if in_github_actions else 400
+MAXITER = (10 if args.use_jax else 50) if in_github_actions else 400
 
 #######################################################
 # End of input parameters.
@@ -83,7 +114,7 @@ config_str = f"rot_order_{rot_order}_nfn_{numfilaments_n}_nfb_{numfilaments_b}"
 # Initialize the boundary magnetic surface:
 nphi = 32
 ntheta = 32
-s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(str(filename), range="half period", nphi=nphi, ntheta=ntheta)
 
 nfil = numfilaments_n * numfilaments_b
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
@@ -110,41 +141,63 @@ currents_fb = apply_symmetries_to_currents(base_currents_finite_build, s.nfp, Tr
 curves = apply_symmetries_to_curves(base_curves, s.nfp, True)
 
 coils_fb = [Coil(c, curr) for (c, curr) in zip(curves_fb, currents_fb)]
-bs = BiotSavart(coils_fb)
+bs = JaxBiotSavart(coils_fb) if args.use_jax else BiotSavart(coils_fb)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 curves_to_vtk(curves, OUT_DIR + "curves_init")
 curves_to_vtk(curves_fb, OUT_DIR + f"curves_init_fb_{config_str}")
 
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + f"surf_init_fb_{config_str}", extra_data=pointData)
 
 # Define the objective function:
-Jf = SquaredFlux(s, bs)
-Jls = [CurveLength(c) for c in base_curves]
-Jdist = CurveCurveDistance(curves, DIST_MIN)
+SquaredFluxT, CurveLengthT, CurveCurveDistanceT = (
+    (JaxSquaredFlux, JaxCurveLength, JaxCurveCurveDistance) if args.use_jax
+    else (SquaredFlux, CurveLength, CurveCurveDistance)
+)
+Jf = SquaredFluxT(s, bs)
+Jls = [CurveLengthT(c) for c in base_curves]
+Jdist = CurveCurveDistanceT(curves, DIST_MIN)
+
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + LENGTH_PEN * sum(QuadraticPenalty(Jls[i], Jls[i].J(), "max") for i in range(len(base_curves))) \
+    + LENGTH_PEN * sum(QuadraticPenalty(Jls[i], float(Jls[i].J()), "max") for i in range(len(base_curves))) \
     + DIST_PEN * Jdist
+
+# Evaluate the whole sum as one compiled program.
+if fused:
+    JF = JaxFusedStageTwoObjective(JF)
+
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
 
 
-def fun(dofs):
-    JF.x = dofs
-    J = JF.J()
-    grad = JF.dJ()
+def progress(J, grad):
     cl_string = ", ".join([f"{J.J():.3f}" for J in Jls])
     mean_AbsB = np.mean(bs.AbsB())
     jf = Jf.J()
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
-    print(f"J={J:.3e}, Jflux={jf:.3e}, sqrt(Jflux)/Mean(|B|)={np.sqrt(jf)/mean_AbsB:.3e}, CoilLengths=[{cl_string}], [{kap_string}], ||∇J||={np.linalg.norm(grad):.3e}")
+    return f"J={J:.3e}, Jflux={jf:.3e}, sqrt(Jflux)/Mean(|B|)={np.sqrt(jf)/mean_AbsB:.3e}, CoilLengths=[{cl_string}], [{kap_string}], ||∇J||={np.linalg.norm(grad):.3e}"
+
+
+# Print the progress line on every 50th evaluation and after each optimization.
+PRINT_EVERY = 50
+evaluation_count = 0
+
+
+def fun(dofs):
+    global evaluation_count
+    JF.x = dofs
+    J = JF.J()
+    grad = JF.dJ()
+    evaluation_count += 1
+    if evaluation_count % PRINT_EVERY == 0:
+        print(progress(J, grad))
     return 1e-4*J, 1e-4*grad
 
 
@@ -171,7 +224,9 @@ print("""
 """)
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 400, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)
-
+# The minimizer's last evaluation need not be at its result, so the outputs below use res.x.
+JF.x = res.x
+print(f"{res.nfev} evaluations: {progress(res.fun, res.jac)}")
 curves_to_vtk(curves_fb, OUT_DIR + f"curves_opt_fb_{config_str}")
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+pointData = {"B_N": np.sum(np.asarray(bs.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + f"surf_opt_fb_{config_str}", extra_data=pointData)
