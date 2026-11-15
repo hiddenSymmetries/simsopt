@@ -192,6 +192,46 @@ class TestCoilSet(unittest.TestCase):
 #### Inherit from TestCoilSet (all tests run exept those overloaded)
 
 
+class TestCoilSetSurfaceTarget(unittest.TestCase):
+    def test_flux_and_cs_distance_penalty_taylor(self):
+        """The penalty exposes coil DOFs and its directional derivative error decreases."""
+        # The surface is the target of the penalties, not a variable: the
+        # combined penalty depends on the coil dofs only, with a consistent gradient.
+        coilset = CoilSet()
+        penalty = coilset.flux_penalty() + coilset.cs_distance_penalty(1.0)
+        self.assertGreater(coilset.surface.dof_size, 0)
+        self.assertEqual(penalty.dof_size, coilset.dof_size)
+        x = penalty.x
+        h = np.random.default_rng(0).uniform(-1, 1, size=x.shape)
+        deriv = penalty.dJ() @ h
+        err = np.inf
+        for i in range(8, 18, 2):
+            eps = 0.5**i
+            # float() evaluates J before the next change of the coil dofs
+            penalty.x = x + eps * h
+            Jp = float(penalty.J())
+            penalty.x = x - eps * h
+            Jm = float(penalty.J())
+            err_new = abs((Jp - Jm) / (2 * eps) - deriv)
+            self.assertLess(err_new, 0.1 * err)
+            err = err_new
+        penalty.x = x
+
+    def test_cs_distance_penalty_follows_a_moving_surface(self):
+        """The coil-surface distance penalty is evaluated at the current surface position."""
+        coilset = CoilSet()
+        surface = coilset.surface
+        penalty = coilset.cs_distance_penalty(0.1)
+        # The surface, of minor radius 0.1, is at least 0.18 from the coils.
+        self.assertEqual(penalty.J(), 0.)
+        surface.set_rc(1, 0, 0.25)
+        surface.set_zs(1, 0, 0.25)
+        fresh = coilset.cs_distance_penalty(0.1)
+        self.assertGreater(fresh.J(), 0.)
+        # The candidates may come in another order, which changes the sum by rounding.
+        np.testing.assert_allclose(penalty.J(), fresh.J(), rtol=1e-13, atol=0)
+
+
 class TestReducedCoilSet(TestCoilSet):
     def setUp(self):
         # Create a ReducedCoilSet object using collocation points

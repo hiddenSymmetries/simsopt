@@ -841,7 +841,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Remove the specific Optimizable object from the children list.
 
         Args:
-            child: Direct dependent (child) of the Optimizable object
+            other: Direct dependent (child) of the Optimizable object
         """
         weakref_other = weakref.ref(other)
         self._children.remove(weakref_other)
@@ -853,7 +853,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Adds another Optimizable object as parent at specified index.
 
         Args:
-            int: Index of the parent's list
+            index: Index of the parent's list
             other: Another Optimizable object to be added as parent
         """
         if other not in self.parents:

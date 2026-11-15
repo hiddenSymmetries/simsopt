@@ -276,9 +276,15 @@ class CoilSet(Optimizable):
 
     def cs_distance_penalty(self, DISTANCE_THRESHOLD):
         """
-        Return a penalty function for the distance between coils and the surface
+        Return a penalty function for the distance between coils and the surface.
+
         Args:
-            DISTANCE_THRESHOLD: The threshold distance below which the penalty is applied
+            DISTANCE_THRESHOLD (float): The threshold distance in m below which
+                the penalty is applied.
+
+        Returns:
+            CurveSurfaceDistance: the penalty on all coil curves against
+            ``self.surface``, with the default ``surface_derivatives=False``.
         """
         curves = [coil.curve for coil in self.coils]
         return CurveSurfaceDistance(curves, self.surface, DISTANCE_THRESHOLD)
