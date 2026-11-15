@@ -1,0 +1,459 @@
+"""JAX surface geometry (values, coefficient derivatives, VJPs and the spec boundary) against the native surfaces."""
+
+from __future__ import annotations
+
+from unittest_jax_support import JAX_IMPORT_ERROR, JaxTestCase, host_array, jax_compilations, optional_jax_imports
+from unittest_jax_support import disallow_host_transfers, parity_default_device, parity_rng, place_float64
+
+with optional_jax_imports():
+    import simsopt_jax  # noqa: F401
+    import jax
+    from simsopt._core.derivative import Derivative, OptimizableDefaultDict
+    from simsopt._core.optimizable import Optimizable
+    from simsopt.geo import CurveXYZFourier, SurfaceGarabedian
+    from simsopt.geo.surface import Surface
+    from simsopt.geo.surfaceobjectives import Area, Volume
+    from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+    from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
+    from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+    from simsopt_jax.backend.jit import jit
+    from simsopt_jax.core import surface_geometry
+    from simsopt_jax.core.specs import SurfaceSpec
+    from simsopt_jax.core.surface_fourier_series import surface_get_dofs, surface_spec_with_dofs
+    from simsopt_jax.core.surface_geometry import surface_gamma
+    from simsopt_jax_adapters.geo import surface_spec_from_surface
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from functools import partial
+from typing import cast
+
+import numpy as np
+
+
+@dataclass(frozen=True)
+class _Case:
+    surface_class: type[_NativeSurface]
+    stellsym: bool
+    nfp: int
+    range: str
+    mpol: int = 2
+    ntor: int = 2
+    clamped_dims: tuple[bool, bool, bool] = (False, False, False)
+
+
+def _second_jacobian(function: Callable[[jax.Array], jax.Array]) -> Callable[[jax.Array], jax.Array]:
+    return jax.jacfwd(jax.jacfwd(function))
+
+
+# Native coefficient VJP -> the native quantity it pulls back through.
+_VJPS = {f"d{name}_by_dcoeff_vjp": name for name in ("gamma", "gammadash1", "gammadash2", "normal")}
+_RTOL = 1e-12
+_ATOL = 1e-12
+_LANES = (("cpu_parity", "cpu"), ("gpu_parity", "gpu"))
+
+
+if JAX_IMPORT_ERROR is None:
+    _NativeSurface = SurfaceRZFourier | SurfaceXYZFourier | SurfaceXYZTensorFourier
+    _Kernel = Callable[[SurfaceSpec], jax.Array]
+    _Transform = Callable[[Callable[[jax.Array], jax.Array]], Callable[[jax.Array], jax.Array]]
+
+    _CASES = {
+        "rz-stellsym-nfp1-full-torus": _Case(SurfaceRZFourier, True, 1, "full torus"),
+        "rz-stellsym-nfp3-field-period": _Case(SurfaceRZFourier, True, 3, "field period"),
+        "rz-nonsym-nfp2-half-period": _Case(SurfaceRZFourier, False, 2, "half period"),
+        "rz-axisymmetric-ntor0": _Case(SurfaceRZFourier, False, 1, "full torus", 3, 0),
+        "xyz-stellsym-nfp1-full-torus": _Case(SurfaceXYZFourier, True, 1, "full torus"),
+        "xyz-stellsym-nfp3-field-period": _Case(SurfaceXYZFourier, True, 3, "field period"),
+        "xyz-nonsym-nfp2-half-period": _Case(SurfaceXYZFourier, False, 2, "half period"),
+        "tensor-stellsym-nfp1-full-torus": _Case(SurfaceXYZTensorFourier, True, 1, "full torus"),
+        "tensor-stellsym-nfp3-field-period": _Case(SurfaceXYZTensorFourier, True, 3, "field period", 2, 1),
+        "tensor-nonsym-nfp2-half-period": _Case(SurfaceXYZTensorFourier, False, 2, "half period"),
+        "tensor-clamped-stellsym-nfp3-field-period": _Case(
+            SurfaceXYZTensorFourier, True, 3, "field period", clamped_dims=(True, False, True)
+        ),
+        "tensor-clamped-nonsym-nfp2-half-period": _Case(
+            SurfaceXYZTensorFourier, False, 2, "half period", clamped_dims=(False, True, True)
+        ),
+    }
+    _CLAMPED_CASES = [name for name, case in _CASES.items() if any(case.clamped_dims)]
+
+    # Native method name -> JAX kernel, by the naming rule surface_<native name>.
+    _VALUES: dict[str, _Kernel] = {
+        name: getattr(surface_geometry, f"surface_{name}")
+        for name in (
+            *("gamma", "gammadash1", "gammadash2", "gammadash1dash1", "gammadash1dash2", "gammadash2dash2"),
+            *("normal", "unitnormal", "area", "volume"),
+        )
+    }
+
+    # Native coefficient derivative -> (the native quantity it differentiates, JAX transform).
+    _DERIVATIVES: dict[str, tuple[str, _Transform]] = {
+        **{f"d{name}_by_dcoeff": (name, jax.jacfwd) for name in _VALUES if name not in ("area", "volume")},
+        "d2normal_by_dcoeffdcoeff": ("normal", _second_jacobian),
+        "darea_by_dcoeff": ("area", jax.grad),
+        "d2area_by_dcoeffdcoeff": ("area", jax.hessian),
+        "dvolume_by_dcoeff": ("volume", jax.grad),
+        "d2volume_by_dcoeffdcoeff": ("volume", jax.hessian),
+    }
+
+    @partial(jit, static_argnums=(0, 1))
+    def _coefficient_derivative(quantity: str, transform: _Transform, spec: SurfaceSpec) -> jax.Array:
+        """A coefficient derivative the documented way: a jitted transform with the spec as argument."""
+        return transform(lambda dofs: _VALUES[quantity](surface_spec_with_dofs(spec, dofs)))(surface_get_dofs(spec))
+
+    @partial(jit, static_argnums=0)
+    def _coefficient_vjp(quantity: str, spec: SurfaceSpec, cotangent: jax.Array) -> jax.Array:
+        _, pullback = jax.vjp(lambda dofs: _VALUES[quantity](surface_spec_with_dofs(spec, dofs)), surface_get_dofs(spec))
+        return pullback(cotangent)[0]
+
+    class _SurfaceRZFourierSubclass(SurfaceRZFourier):
+        pass
+
+    class _SurfaceXYZTensorFourierSubclass(SurfaceXYZTensorFourier):
+        pass
+
+
+def _evaluate(name: str, spec: SurfaceSpec) -> jax.Array:
+    """The JAX counterpart of the native value or coefficient derivative ``name``."""
+    if name in _DERIVATIVES:
+        quantity, transform = _DERIVATIVES[name]
+        return _coefficient_derivative(quantity, transform, spec)
+    return _VALUES[name](spec)
+
+
+def _differentiated(name: str) -> str:
+    """The native quantity whose central differences approximate derivative ``name``."""
+    quantity = _DERIVATIVES[name][0]
+    return f"d{quantity}_by_dcoeff" if name.startswith("d2") else quantity
+
+
+def _jitter(values: np.ndarray, seed: int) -> np.ndarray:
+    return values + 0.01 * parity_rng(seed).standard_normal(values.size)
+
+
+def _surface(
+    case: str, seed: int = 0, quadpoints_phi: np.ndarray | None = None, quadpoints_theta: np.ndarray | None = None
+) -> _NativeSurface:
+    """The native default torus (radii 1 and 0.1) with random DOF offsets, on the case's grid or the given one."""
+    params = _CASES[case]
+    extra = {"clamped_dims": list(params.clamped_dims)} if params.surface_class is SurfaceXYZTensorFourier else {}
+    grid_phi, grid_theta = Surface.get_quadpoints(nphi=7, ntheta=8, range=params.range, nfp=params.nfp)
+    surface = params.surface_class(
+        quadpoints_phi=grid_phi if quadpoints_phi is None else quadpoints_phi,
+        quadpoints_theta=grid_theta if quadpoints_theta is None else quadpoints_theta,
+        nfp=params.nfp, stellsym=params.stellsym, mpol=params.mpol, ntor=params.ntor, **extra,
+    )
+    surface.x = _jitter(surface.get_dofs(), seed)
+    return surface
+
+
+def _native(surface: _NativeSurface, method: str, *args: np.ndarray) -> np.ndarray:
+    """A copy: native methods return views of caches that later calls overwrite."""
+    return np.array(getattr(surface, method)(*args))
+
+
+def _assert_native(actual: jax.Array, expected: np.ndarray, quantity: str) -> None:
+    np.testing.assert_allclose(host_array(actual), expected, rtol=_RTOL, atol=_ATOL,
+                               err_msg=f"JAX {quantity} differs from the native {quantity}")
+
+
+def _cotangent(surface: _NativeSurface, seed: int) -> np.ndarray:
+    return parity_rng(seed).standard_normal(surface.gamma().shape)
+
+
+def _assert_central(actual: np.ndarray, plus: np.ndarray, minus: np.ndarray, step: float, message: str) -> None:
+    """``actual`` against the central difference ``(plus - minus) / (2 step)``."""
+    central = (plus - minus) / (2 * step)
+    np.testing.assert_allclose(actual, central, rtol=0.0, atol=1e-8 * np.max(np.abs(central)), err_msg=message)
+
+
+def _free_gradient(owner: _NativeSurface, all_dofs_gradient: np.ndarray, objective: Optimizable) -> np.ndarray:
+    """A gradient with respect to all DOFs of ``owner``, projected onto ``objective``'s free DOFs."""
+    return cast(np.ndarray, Derivative(OptimizableDefaultDict({owner: all_dofs_gradient}))(objective))
+
+
+def _evaluate_every_kernel(spec: SurfaceSpec, cotangent: jax.Array) -> dict[str, jax.Array]:
+    results = {name: _evaluate(name, spec) for name in (*_VALUES, *_DERIVATIVES)}
+    results.update((name, _coefficient_vjp(quantity, spec, cotangent)) for name, quantity in _VJPS.items())
+    return jax.block_until_ready(results)
+
+
+def _assert_every_kernel_native(results: dict[str, jax.Array], surface: _NativeSurface, cotangent: np.ndarray) -> None:
+    for name in (*_VALUES, *_DERIVATIVES):
+        _assert_native(results[name], _native(surface, name), name)
+    for name in _VJPS:
+        _assert_native(results[name], _native(surface, name, cotangent), name)
+
+
+def _write_entries_outside_the_dofs(surface: _NativeSurface) -> None:
+    """Native coefficient entries that no DOF holds: summed or skipped as natively."""
+    if isinstance(surface, SurfaceRZFourier):
+        surface.rc[0, surface.ntor - 1] = 0.05  # m = 0, n < 0: summed
+        surface.zs[0, 0] = -0.03  # m = 0, n = -ntor: summed
+        surface.rs[1, surface.ntor] = 0.07  # stellarator symmetric: skipped
+    elif isinstance(surface, SurfaceXYZFourier):
+        surface.xc[0, surface.ntor - 1] = 0.05  # m = 0, n < 0: summed
+        surface.xs[1, surface.ntor] = 0.02  # stellarator symmetric: summed anyway
+    else:
+        surface.xcs[surface.mpol + 1, 0] = 0.05  # stellarator symmetric: skipped
+    surface.local_full_x = surface.get_dofs()
+
+
+def _singular_surface(singularity: str) -> SurfaceRZFourier:
+    """``cusp``: dr/dtheta = dz/dtheta = 0 exactly at theta = 0 (normal 0 there).
+    ``underflow``: a surface of size 1e-85, whose normals' squares underflow past
+    the subnormal range to 0."""
+    ntor, scale = (0, 1.0) if singularity == "cusp" else (1, 1e-85)
+    surface = SurfaceRZFourier.from_nphi_ntheta(
+        nphi=5, ntheta=6, nfp=2, stellsym=True, mpol=2, ntor=ntor, range="field period"
+    )
+    surface.set_rc(0, 0, 1.0 * scale)
+    surface.set_rc(1, 0, 0.3 * scale)
+    surface.set_zs(1, 0, 0.3 * scale)
+    if singularity == "cusp":
+        surface.set_rc(2, 0, 0.05)
+        surface.set_zs(2, 0, -0.15)
+    else:
+        surface.set_rc(1, 1, 0.02 * scale)
+    return surface
+
+
+def _cases(names, lanes=None) -> list[dict]:
+    """``case`` rows, each under every ``(case_id_0, parity_lane)`` lane when lanes are given."""
+    if lanes is None:
+        return [dict(case=case) for case in names]
+    return [dict(case_id_0=lane_id, parity_lane=lane, case=case) for lane_id, lane in lanes for case in names]
+
+
+class TestSurfaceGeometryJax(JaxTestCase):
+    def test_every_kernel_matches_native(self):
+        """Surface values, coefficient derivatives and VJPs agree with the native geometry."""
+        def check(case_id_0, parity_lane, case):
+            surface = _surface(case)
+            cotangent = _cotangent(surface, seed=1)
+            with parity_default_device(parity_lane):
+                spec = surface_spec_from_surface(surface)
+                results = _evaluate_every_kernel(spec, place_float64(cotangent, spec.quadpoints_phi))
+            _assert_every_kernel_native(results, surface, cotangent)
+
+        self.run_cases(check, _cases(_CASES, _LANES))
+
+    def test_coefficient_derivatives_match_central_differences_of_native_values(self):
+        """Surface coefficient derivatives agree with central differences of native quantities."""
+        def check(case):
+            surface = _surface(case)
+            spec = surface_spec_from_surface(surface)
+            dofs = surface.get_dofs()
+            direction = parity_rng(2).standard_normal(dofs.size)
+            direction /= np.linalg.norm(direction)
+            step = 1e-6  # truncation error ~ step**2 and rounding error ~ 1e-16 / step balance here
+
+            def native_at(offset: float, quantity: str) -> np.ndarray:
+                surface.set_dofs(dofs + offset * direction)
+                return _native(surface, quantity)
+
+            for name in _DERIVATIVES:
+                quantity = _differentiated(name)
+                _assert_central(host_array(_evaluate(name, spec)) @ direction, native_at(step, quantity),
+                                native_at(-step, quantity), step,
+                                f"JAX {name} disagrees with central differences of native {quantity}")
+
+        self.run_cases(check, _cases(["rz-nonsym-nfp2-half-period", "xyz-stellsym-nfp3-field-period",
+                                      "tensor-nonsym-nfp2-half-period"]))
+
+    def test_free_dof_gradients_match_native_objectives_with_fixed_and_shared_dofs(self):
+        """Free DOF projections agree with native area, volume and VJPs for fixed/shared DOFs."""
+        def check(case):
+            surface = _surface(case)
+            names = list(surface.local_full_dof_names)
+            fixed = (str(names[0]), str(names[-1]))
+            for name in fixed:
+                surface.fix(name)
+            spec = surface_spec_from_surface(surface)
+            area, volume = Area(surface), Volume(surface)
+            # A different quadrature grid on a surface that shares the DOFs.
+            shared_area = Area(surface, range="half period", nphi=5, ntheta=6)
+            shared_spec = surface_spec_from_surface(shared_area.surface)
+
+            for objective, objective_spec, gradient in (
+                (area, spec, "darea_by_dcoeff"), (volume, spec, "dvolume_by_dcoeff"),
+                (shared_area, shared_spec, "darea_by_dcoeff"),
+            ):
+                free_gradient = _free_gradient(
+                    objective.surface, host_array(_evaluate(gradient, objective_spec)), objective
+                )
+                self.assertEqual(free_gradient.size, surface.get_dofs().size - len(fixed))
+                np.testing.assert_allclose(
+                    free_gradient, cast(np.ndarray, objective.dJ()), rtol=_RTOL, atol=_ATOL,
+                    err_msg=f"free-DOF gradient of {type(objective).__name__} differs from native",
+                )
+
+            # The VJP of a least-squares fit of gamma, projected like a native objective's.
+            cotangent = _cotangent(surface, seed=3)
+            jax_vjp = host_array(_coefficient_vjp("gamma", spec, place_float64(cotangent, spec.quadpoints_phi)))
+            np.testing.assert_allclose(
+                _free_gradient(surface, jax_vjp, surface),
+                _free_gradient(surface, surface.dgamma_by_dcoeff_vjp(cotangent), surface), rtol=_RTOL, atol=_ATOL,
+            )
+
+        self.run_cases(check, _cases(["rz-stellsym-nfp3-field-period", "tensor-stellsym-nfp3-field-period"]))
+
+    def test_new_dofs_reuse_the_programs_without_implicit_transfers(self):
+        """New coefficient values preserve snapshots and reuse kernels without implicit transfers."""
+        def check(case_id_0, parity_lane, case):
+            surface = _surface(case)
+            surface.fix(str(list(surface.local_full_dof_names)[3]))
+            cotangent = _cotangent(surface, seed=4)
+            with parity_default_device(parity_lane), disallow_host_transfers():
+                first_spec = surface_spec_from_surface(surface)
+                placed_cotangent = place_float64(cotangent, first_spec.quadpoints_phi)
+                first_results = _evaluate_every_kernel(first_spec, placed_cotangent)
+            _assert_every_kernel_native(first_results, surface, cotangent)
+            first_gamma = _native(surface, "gamma")
+
+            surface.x = _jitter(np.asarray(surface.x), seed=5)
+            with parity_default_device(parity_lane), disallow_host_transfers(), jax_compilations() as compilations:
+                second_spec = surface_spec_from_surface(surface)
+                second_results = _evaluate_every_kernel(second_spec, placed_cotangent)
+            self.assertTrue(compilations == [], "new DOF values retraced or recompiled a program")
+            _assert_every_kernel_native(second_results, surface, cotangent)
+            devices = {device for result in second_results.values() for device in result.devices()}
+            self.assertEqual(devices, second_spec.quadpoints_phi.devices())
+            # A spec is a snapshot: the first one still evaluates the first surface.
+            _assert_native(surface_gamma(first_spec), first_gamma, "gamma")
+
+        self.run_cases(check, _cases(["rz-nonsym-nfp2-half-period", "xyz-nonsym-nfp2-half-period",
+                                      "tensor-clamped-stellsym-nfp3-field-period"], _LANES))
+
+    def test_spec_dofs_follow_the_native_get_and_set_dofs(self):
+        """Spec DOF extraction and replacement preserve the full native coefficient layout."""
+        def check(case):
+            surface = _surface(case)
+            spec = surface_spec_from_surface(surface)
+            np.testing.assert_array_equal(host_array(surface_get_dofs(spec)), surface.get_dofs())
+
+            new_dofs = _jitter(surface.get_dofs(), seed=8)
+            moved = surface_spec_with_dofs(spec, place_float64(new_dofs, spec.quadpoints_phi))
+            surface.set_dofs(new_dofs)
+            # Every coefficient array and quadrature grid equals the native one after set_dofs.
+            for moved_leaf, native_leaf in zip(
+                jax.tree.leaves(moved), jax.tree.leaves(surface_spec_from_surface(surface)), strict=True
+            ):
+                np.testing.assert_array_equal(host_array(moved_leaf), host_array(native_leaf))
+            np.testing.assert_array_equal(host_array(surface_get_dofs(moved)), new_dofs)
+
+        self.run_cases(check, _cases(["rz-axisymmetric-ntor0", "xyz-nonsym-nfp2-half-period",
+                                      "tensor-clamped-stellsym-nfp3-field-period"]))
+
+    def test_coefficient_entries_outside_the_dofs_enter_the_geometry_as_natively(self):
+        """Non-DOF coefficients affect or skip geometry exactly as in the native surface."""
+        def check(case):
+            surface = _surface(case)
+            unmodified_gamma = _native(surface, "gamma")
+            _write_entries_outside_the_dofs(surface)
+            if not isinstance(surface, SurfaceXYZTensorFourier):
+                self.assertFalse(np.allclose(_native(surface, "gamma"), unmodified_gamma))
+            cotangent = _cotangent(surface, seed=9)
+            spec = surface_spec_from_surface(surface)
+            placed_cotangent = place_float64(cotangent, spec.quadpoints_phi)
+            _assert_every_kernel_native(_evaluate_every_kernel(spec, placed_cotangent), surface, cotangent)
+
+            new_dofs = _jitter(surface.get_dofs(), seed=10)
+            moved = surface_spec_with_dofs(spec, place_float64(new_dofs, spec.quadpoints_phi))
+            surface.set_dofs(new_dofs)
+            _assert_every_kernel_native(_evaluate_every_kernel(moved, placed_cotangent), surface, cotangent)
+
+        self.run_cases(check, _cases(["rz-stellsym-nfp3-field-period", "xyz-stellsym-nfp3-field-period",
+                                      "tensor-stellsym-nfp3-field-period"]))
+
+    def test_singular_normals_give_the_native_non_finite_values(self):
+        """Singular normals retain native finite values and nonfinite patterns within documented limits."""
+        def check(singularity):
+            surface = _singular_surface(singularity)
+            spec = surface_spec_from_surface(surface)
+            self.assertFalse(np.isfinite(_native(surface, "unitnormal")).all())
+            for name in ("normal", "unitnormal", "area", "volume",
+                         "darea_by_dcoeff", "d2area_by_dcoeffdcoeff", "dvolume_by_dcoeff"):
+                # Equal NaN and signed infinity positions, and equal finite values.
+                np.testing.assert_allclose(
+                    host_array(_evaluate(name, spec)), _native(surface, name), rtol=_RTOL, atol=_ATOL, equal_nan=True,
+                    err_msg=f"JAX {name} differs from native at singular normals",
+                )
+            # Native's closed form and autodiff combine a singular point's infinite and
+            # NaN terms in different orders, so only the finite entries must agree.
+            actual = host_array(_evaluate("dunitnormal_by_dcoeff", spec))
+            expected = _native(surface, "dunitnormal_by_dcoeff")
+            np.testing.assert_array_equal(np.isfinite(actual), np.isfinite(expected))
+            finite = np.isfinite(expected)
+            np.testing.assert_allclose(actual[finite], expected[finite], rtol=_RTOL, atol=_ATOL)
+
+        self.run_cases(check, [dict(singularity="cusp"), dict(singularity="underflow")])
+
+    def test_specs_refuse_other_classes(self):
+        """Snapshot conversion rejects unsupported geometry classes and subclasses."""
+        def check(case_id_0, make_object):
+            with self.assertRaisesRegex(TypeError, "supports SurfaceRZFourier, SurfaceXYZFourier"):
+                surface_spec_from_surface(make_object())
+
+        self.run_cases(check, [
+            dict(case_id_0="SurfaceGarabedian", make_object=lambda: SurfaceGarabedian()),
+            dict(case_id_0="SurfaceRZFourier-subclass", make_object=lambda: _SurfaceRZFourierSubclass()),
+            dict(case_id_0="SurfaceXYZTensorFourier-subclass", make_object=lambda: _SurfaceXYZTensorFourierSubclass()),
+            dict(case_id_0="curve", make_object=lambda: CurveXYZFourier(8, 1)),
+        ])
+
+    def test_coefficient_derivatives_taylor(self):
+        """Coefficient derivatives converge with the native centered Taylor stencil."""
+        def check(case):
+            surface = _surface(case)
+            spec = surface_spec_from_surface(surface)
+            dofs = surface.get_dofs()
+            direction = parity_rng(2).standard_normal(dofs.size)
+            direction /= np.linalg.norm(direction)
+            for name in _DERIVATIVES:
+                quantity = _differentiated(name)
+                analytic = host_array(_evaluate(name, spec)) @ direction
+                previous_error = 1e9
+                for step in np.power(2.0, -np.arange(8, 17)):
+                    surface.set_dofs(dofs + step * direction)
+                    plus = _native(surface, quantity)
+                    surface.set_dofs(dofs - step * direction)
+                    minus = _native(surface, quantity)
+                    error = np.linalg.norm((plus - minus) / (2 * step) - analytic)
+                    self.assertTrue(error < 1e-9 or error < 0.3 * previous_error, name)
+                    if error < 1e-9:
+                        break
+                    previous_error = error
+                surface.set_dofs(dofs)
+
+        self.run_cases(check, _cases(["rz-nonsym-nfp2-half-period", "xyz-stellsym-nfp3-field-period",
+                                      "tensor-nonsym-nfp2-half-period"]))
+
+    def test_clamped_second_derivatives_taylor(self):
+        """Clamped second derivatives converge from native first derivatives on shifted grids."""
+        triples = (("gammadash1dash1", "gammadash1", 0), ("gammadash1dash2", "gammadash1", 1),
+                   ("gammadash2dash2", "gammadash2", 1))
+        self.run_cases(partial(self._assert_grid_taylor, triples=triples), _cases(_CLAMPED_CASES))
+
+    def test_first_derivatives_taylor(self):
+        """First angle derivatives converge from native positions on shifted grids."""
+        triples = (("gammadash1", "gamma", 0), ("gammadash2", "gamma", 1))
+        self.run_cases(partial(self._assert_grid_taylor, triples=triples), _cases(_CASES))
+
+    def _assert_grid_taylor(self, case, triples):
+        """Each ``(derivative, value, axis)`` converges from native ``value`` on grids shifted along ``axis``."""
+        surface = _surface(case)
+        spec = surface_spec_from_surface(surface)
+        phi = np.asarray(surface.quadpoints_phi)
+        theta = np.asarray(surface.quadpoints_theta)
+        for derivative, value_name, axis in triples:
+            analytic = host_array(_evaluate(derivative, spec))
+            value = _native(surface, value_name)
+            previous_error = 1e6
+            for step in np.power(2.0, -np.arange(10, 15)):
+                shifted = _surface(case, quadpoints_phi=phi + (step if axis == 0 else 0),
+                                   quadpoints_theta=theta + (step if axis == 1 else 0))
+                error = np.linalg.norm((_native(shifted, value_name) - value) / step - analytic)
+                self.assertLess(error, 0.55 * previous_error, derivative)
+                previous_error = error
