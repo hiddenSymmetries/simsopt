@@ -126,8 +126,8 @@ class PestSurface(Optimizable):
     grid of one field period, or half of it with stellarator symmetry (see ``pest_surface_residual``), and
     they are chosen by the class, not taken from the quadrature points of ``surface``. :math:`E_R` at
     :math:`\theta = \phi = 0` is replaced by the label constraint: with stellarator symmetry it vanishes for
-    any surface. Without stellarator symmetry, it is implied by the other equations, since the flux of
-    :math:`\mathbf B` through a closed surface vanishes,
+    any surface. Without stellarator symmetry, it is implied by the other equations up to the discretization
+    error, since the flux of :math:`\mathbf B` through a closed surface vanishes,
 
         .. math::
 
@@ -140,16 +140,20 @@ class PestSurface(Optimizable):
     :math:`m \ge 1` sum to zero. The system is square in both cases.
 
     It is solved by Newton's method from the initial guess given by ``surface`` and by the ``iota`` passed
-    to :obj:`run_code`, which has to be close enough to the solution. On the NCSX coils of
-    :obj:`~simsopt.configs.get_data`, for example, a torus of minor radius 0.1 m about the magnetic axis
-    (as :obj:`~simsopt.geo.PeriodicFieldLine` computes it), made with ``surface.fit_to_curve``, is close
-    enough at ``mpol = ntor = 6``, and the solution there, copied with ``surface.copy(mpol=..., ntor=...)``,
-    is close enough at a higher resolution. In an optimization, each solve starts from the last.
+    to :obj:`run_code`, which have to be close enough to the solution. Near the magnetic axis, a torus about
+    the axis made with ``surface.fit_to_curve`` and the rotational transform on the axis are usually close
+    enough at ``mpol = ntor = 6``, and the solution, copied with ``surface.copy(mpol=..., ntor=...)``, at a
+    higher resolution, raised in steps (see ``examples/2_Intermediate/pest_surface.py``). ``iota`` is negative
+    if the field lines go round the axis against :math:`\theta`. A surface further from the axis is best
+    started from the solution for a smaller one. In an optimization, each solve starts from the last.
 
-    As for :obj:`~simsopt.geo.BoozerSurface`, ``res['success']`` means that Newton's method converged, not
-    that the surface is a flux surface: inside an island chain or beyond the last closed flux surface, a torus
-    that the field crosses can also solve the equations. On a flux surface, the largest
-    :math:`|\mathbf B \cdot \mathbf n|/|\mathbf B|` on the surface falls with ``mpol`` and ``ntor``.
+    The equations have other solutions. A flux surface traversed :math:`k` times in :math:`\theta` solves
+    them with :math:`k` times its label and another :math:`\iota`: ``res['success']`` is False for it. A
+    torus that the field crosses can solve them at the collocation points, inside an island chain or beyond
+    the last closed flux surface, and elsewhere from a poor guess: ``res['success']`` is True for it, as for
+    :obj:`~simsopt.geo.BoozerSurface`. Between the collocation points, the largest
+    :math:`|\mathbf B \cdot \mathbf n|/|\mathbf B|` falls with ``mpol`` and ``ntor`` on a flux surface, and
+    does not on such a torus.
 
     ``res['PLU']`` is the LU factorization of the Jacobian with respect to ``[surface.get_dofs(), iota]``
     and ``res['vjp']`` the vector-Jacobian product with respect to the coils, as for
@@ -237,7 +241,8 @@ class PestSurface(Optimizable):
 
     def solve_residual_equation_exactly_newton(self, tol=1e-13, maxiter=40, iota=0., G=None, verbose=False):
         """
-        Solve the equations by Newton's method, starting from the current ``surface`` and ``iota``.
+        Solve the equations by Newton's method, starting from the current ``surface`` and ``iota``. If it
+        diverges until the equations overflow, ``surface`` and ``iota`` are reset to this initial guess.
 
         Args:
             tol (float, Optional): tolerance on the largest entry of the residual. Defaults to 1e-13.
@@ -249,13 +254,14 @@ class PestSurface(Optimizable):
         Returns:
             dict: A dictionary containing the results. The dictionary contains the following keys:
 
-                - `"success"`: True if Newton's method converged
+                - `"success"`: True if Newton's method converged to a surface that goes once round its cross
+                  section
                 - `"iter"`: the number of iterations
                 - `"iota"`: the rotational transform on the surface
                 - `"G"`: None
                 - `"s"`: the surface object
-                - `"residual"`: the residual of the equations at the last iterate
-                - `"PLU"`: the LU factorization of the Jacobian at the last iterate
+                - `"residual"`: the residual of the equations at the surface and iota returned
+                - `"PLU"`: the LU factorization of the Jacobian at the surface and iota returned
                 - `"vjp"`: the vector-Jacobian product of the equations with respect to the coils
         """
         if not self.need_to_run_code:
@@ -264,6 +270,7 @@ class PestSurface(Optimizable):
         self.res = None
         s = self.surface
         x = np.concatenate((s.get_dofs(), [iota]))
+        x0 = x.copy()
         b, J = self.equations(iota)
         norm = np.linalg.norm(b, ord=np.inf)
         i = 0
@@ -282,12 +289,27 @@ class PestSurface(Optimizable):
             i += 1
             b, J = self.equations(iota)
             norm = np.linalg.norm(b, ord=np.inf)
+        if not np.all(np.isfinite(J)):
+            # Newton's method diverged: back to the initial guess, where the Jacobian can be factorized, so
+            # that Iotas and MajorRadius can be evaluated after a failed solve, as BoozerSurface allows
+            s.set_dofs(x0[:-1])
+            iota = x0[-1]
+            b, J = self.equations(iota)
+            norm = np.linalg.norm(b, ord=np.inf)
+
+        success = norm <= tol
+        if success:
+            # a flux surface traversed k times in theta also solves the equations, with k times its label: the
+            # tangent of the cross section phi = 0 has to turn once as theta goes round
+            section = s.copy(quadpoints_phi=[0.], quadpoints_theta=np.linspace(0, 1, 8 * s.mpol + 4, endpoint=False))
+            tangent = section.gammadash2()[0] @ [1, 0, 1j]
+            success = abs(round(np.sum(np.angle(np.roll(tangent, -1) / tangent)) / (2 * np.pi))) == 1
 
         p, L, U = lu(J, p_indices=True, check_finite=False)
         # J = L[p] @ U, that is P @ L @ U with the sparse permutation matrix P below
         P = csr_matrix((np.ones(p.size), (np.arange(p.size), p)))
         res = {
-            "success": norm <= tol, "iter": i, "iota": iota, "G": None, "s": s,
+            "success": success, "iter": i, "iota": iota, "G": None, "s": s,
             "residual": b, "PLU": (P, L, U), "vjp": pest_surface_dcoils_dcurrents_vjp,
         }
         if verbose:

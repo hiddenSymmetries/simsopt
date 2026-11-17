@@ -162,6 +162,41 @@ class PestSurfaceTests(unittest.TestCase):
         self.assertLessEqual(res['iter'], 3)
         self.assertIs(pest_surface.run_code(iota), res)
 
+    def test_double_cover(self):
+        """
+        A flux surface traversed twice in theta solves the equations with twice its toroidal flux and half its
+        rotational transform, and is not a success.
+        """
+        bs, _, pest_surface = get_pest_surface(6, 6)
+        s, iota = pest_surface.surface, pest_surface.res['iota']
+        twice = SurfaceRZFourier(nfp=s.nfp, stellsym=True, mpol=2*s.mpol, ntor=s.ntor)
+        twice.rc[::2], twice.zs[::2] = s.rc, s.zs
+        twice.local_full_x = twice.get_dofs()
+        label = ToroidalFlux(twice, BiotSavart(bs.coils), range="field period", nphi=1, ntheta=96)
+        res = PestSurface(bs, twice, label, 2*pest_surface.targetlabel, options={'verbose': False}).run_code(iota/2)
+        self.assertLess(np.linalg.norm(res['residual'], ord=np.inf), 1e-13)
+        self.assertAlmostEqual(res['iota'], iota/2, delta=1e-3)
+        self.assertFalse(res['success'])
+
+    def test_diverged_solve(self):
+        """
+        With a hundred times the target label, Newton's method diverges until the equations overflow. The solve
+        fails, the surface and iota are those of the initial guess, and the derivatives of Iotas and MajorRadius
+        can still be evaluated, as in a line search that checks ``res['success']`` after it has evaluated the
+        objective.
+        """
+        bs, _, pest_surface = get_pest_surface(6, 6)
+        dofs, iota = pest_surface.surface.get_dofs(), pest_surface.res['iota']
+        pest_surface.targetlabel *= 100
+        pest_surface.need_to_run_code = True
+        with np.errstate(all='ignore'):
+            res = pest_surface.run_code(iota)
+        self.assertFalse(res['success'])
+        np.testing.assert_array_equal(pest_surface.surface.get_dofs(), dofs)
+        self.assertEqual(res['iota'], iota)
+        for objective in [Iotas, MajorRadius]:
+            self.assertTrue(np.all(np.isfinite(objective(pest_surface).dJ())))
+
     def test_derivatives(self):
         """
         Taylor tests for the derivatives of Iotas and MajorRadius with respect to the coils, with and without
