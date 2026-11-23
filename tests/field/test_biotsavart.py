@@ -1,7 +1,9 @@
 import unittest
 
 import numpy as np
+from scipy import constants
 
+import simsoptpp as sopp
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Coil, Current, ScaledCurrent
@@ -430,6 +432,28 @@ class Testing(unittest.TestCase):
         assert np.linalg.norm(dA[0]-dA_approx) < 1e-15
         assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
         assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
+
+    def test_cpp_mu0_matches_scipy(self):
+        """The C++ core must use the same mu_0 as scipy.constants."""
+        assert sopp.MU0 == constants.mu_0
+
+    def test_biot_savart_circular_coil_center(self):
+        # B = mu_0 I / (2 R) at the center of a circular loop
+        R, I = 1.3, 2.7e5
+        curve = CurveXYZFourier(200, 1)
+        curve.set_dofs([0, 0, R, 0, R, 0, 0, 0, 0])  # x = R cos, y = R sin
+        field = BiotSavart([Coil(curve, Current(I))])
+        field.set_points(np.zeros((1, 3)))
+        np.testing.assert_allclose(
+            field.B()[0, 2], constants.mu_0 * I / (2 * R), rtol=1e-12)
+
+    def test_dipole_field_on_axis(self):
+        # B = mu_0 m / (2 pi r^3) on the axis of a dipole
+        r, m = 0.7, 3.1
+        B = sopp.dipole_field_B(np.array([[0.0, 0.0, r]]), np.zeros((1, 3)),
+                                np.array([[0.0, 0.0, m]]))
+        np.testing.assert_allclose(
+            B[0, 2], constants.mu_0 * m / (2 * np.pi * r**3), rtol=1e-12)
 
 
 if __name__ == "__main__":
