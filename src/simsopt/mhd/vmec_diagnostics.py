@@ -11,6 +11,7 @@ import logging
 from typing import Union, Optional
 
 import numpy as np
+from scipy import constants
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
 from scipy.optimize import newton
 import dataclasses
@@ -444,7 +445,7 @@ class IotaTargetMetric(Optimizable):
 
         Bx0, By0, Bz0 = B_cartesian(vmec)
 
-        mu0 = 4*np.pi*1e-7
+        mu0 = constants.mu_0
         It_half = vmec.wout.signgs * 2*np.pi * vmec.wout.bsubumnc[0, 1::] / mu0
         ac_aux_f_prev = np.copy(vmec.indata.ac_aux_f)
         ac_aux_s_prev = np.copy(vmec.indata.ac_aux_s)
@@ -554,7 +555,7 @@ class IotaWeighted(Optimizable):
 
         Bx0, By0, Bz0 = B_cartesian(vmec)
 
-        mu0 = 4*np.pi*1e-7
+        mu0 = constants.mu_0
         It_half = vmec.wout.signgs * 2*np.pi * vmec.wout.bsubumnc[0, 1::] / mu0
         ac_aux_f_prev = np.copy(vmec.indata.ac_aux_f)
         ac_aux_s_prev = np.copy(vmec.indata.ac_aux_s)
@@ -672,7 +673,7 @@ class WellWeighted(Optimizable):
 
         Bx0, By0, Bz0 = B_cartesian(self.vmec)
 
-        mu0 = 4*np.pi*1e-7
+        mu0 = constants.mu_0
         am_aux_f_prev = np.copy(vmec.indata.am_aux_f)
         am_aux_s_prev = np.copy(vmec.indata.am_aux_s)
         pmass_type_prev = np.copy(vmec.indata.pmass_type)
@@ -1593,7 +1594,7 @@ def vmec_compute_geometry(vs, s:RealArray, theta:RealArray, phi:RealArray, phi_c
 
     B_cross_kappa_dot_grad_psi = B_cross_grad_B_dot_grad_psi / modB
 
-    mu_0 = 4 * np.pi * (1.0e-7)
+    mu_0 = constants.mu_0
     B_cross_kappa_dot_grad_alpha = B_cross_grad_B_dot_grad_alpha / modB + mu_0 * d_pressure_d_s[:, None, None] / edge_toroidal_flux_over_2pi
 
     # stella / gs2 / gx quantities:

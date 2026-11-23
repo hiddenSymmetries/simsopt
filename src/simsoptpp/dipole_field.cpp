@@ -1,3 +1,4 @@
+#include "constants.h"
 #include "dipole_field.h"
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
@@ -30,7 +31,7 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
     // initialize pointers to the beginning of m and the dipole grid
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
-    double fak = 1e-7;  // mu0 divided by 4 * pi factor
+    double fak = MU0_OVER_4PI;  // mu0 divided by 4 * pi factor
 
     // Loop through the evaluation points by chunks of simd_size
     #pragma omp parallel for schedule(static)
@@ -95,7 +96,7 @@ Array dipole_field_A(Array& points, Array& m_points, Array& m) {
     // initialize pointers to the beginning of m and the dipole grid
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
-    double fak = 1e-7;  // mu0 divided by 4 * pi factor
+    double fak = MU0_OVER_4PI;  // mu0 divided by 4 * pi factor
 
     // Loop through the evaluation points by chunks of simd_size
     #pragma omp parallel for schedule(static)
@@ -163,7 +164,7 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
     Array dB = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
-    double fak = 1e-7;
+    double fak = MU0_OVER_4PI;
     
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_points; i += simd_size) {
@@ -242,7 +243,7 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
     Array dA = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
-    double fak = 1e-7;
+    double fak = MU0_OVER_4PI;
     
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_points; i += simd_size) {
@@ -338,7 +339,7 @@ Array dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp
 
     // initialize pointer to the beginning of the dipole grid
     double* m_points_ptr = &(m_points(0, 0));
-    double fak = 1e-7;  // mu0 divided by 4 * pi factor
+    double fak = MU0_OVER_4PI;  // mu0 divided by 4 * pi factor
 
     // Loop through the evaluation points by chunks of simd_size
     #pragma omp parallel for schedule(static)
@@ -472,7 +473,7 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
     // initialize pointers to the beginning of m and the dipole grid
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
-    double fak = 1e-7;  // mu0 divided by 4 * pi factor
+    double fak = MU0_OVER_4PI;  // mu0 divided by 4 * pi factor
 
     // Loop through the evaluation points by chunks of simd_size
     #pragma omp parallel for schedule(static)
@@ -521,7 +522,7 @@ Array dipole_field_A(Array& points, Array& m_points, Array& m) {
     // initialize pointers to the beginning of m and the dipole grid
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
-    double fak = 1e-7;  // mu0 divided by 4 * pi factor
+    double fak = MU0_OVER_4PI;  // mu0 divided by 4 * pi factor
 
     // Loop through the evaluation points by chunks of simd_size
     #pragma omp parallel for schedule(static)
@@ -573,7 +574,7 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
     Array dB = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
-    double fak = 1e-7;
+    double fak = MU0_OVER_4PI;
 
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_points; i++) {
@@ -635,7 +636,7 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
     Array dA = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
-    double fak = 1e-7;
+    double fak = MU0_OVER_4PI;
 
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_points; i++) {
@@ -713,7 +714,7 @@ Array dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp
     
     // initialize pointer to the beginning of the dipole grid
     double* m_points_ptr = &(m_points(0, 0));
-    double fak = 1e-7;  // mu0 divided by 4 * pi factor
+    double fak = MU0_OVER_4PI;  // mu0 divided by 4 * pi factor
 
     // Loop through the evaluation points by chunks of simd_size
     #pragma omp parallel for schedule(static)

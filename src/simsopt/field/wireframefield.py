@@ -5,7 +5,7 @@ from .magneticfield import MagneticField
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 
-mu0 = 4.0*np.pi*1e-7
+mu0 = sp.constants.mu_0
 
 __all__ = ['WireframeField', 'enclosed_current']
 

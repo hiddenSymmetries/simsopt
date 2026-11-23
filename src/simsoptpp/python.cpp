@@ -23,6 +23,7 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "reiman.h"
 #include "simdhelpers.h"
 #include "boozerresidual_py.h"
+#include "constants.h"
 
 namespace py = pybind11;
 
@@ -40,6 +41,7 @@ void init_distance(py::module_ &);
 
 PYBIND11_MODULE(simsoptpp, m) {
     xt::import_numpy();
+    m.attr("MU0") = MU0;
 
     init_curves(m);
     init_surfaces(m);

@@ -1,3 +1,4 @@
+#include "constants.h"
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
 #include <stdexcept>
@@ -41,7 +42,7 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
         };
     }
-    double fak = (1e-7/num_quad_points);
+    double fak = (MU0_OVER_4PI/num_quad_points);
     double* gamma_j_ptr = &(gamma(0, 0));
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
@@ -212,7 +213,7 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
-    double fak = (1e-7/num_quad_points);
+    double fak = (MU0_OVER_4PI/num_quad_points);
     double* gamma_j_ptr = &(gamma(0, 0));
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
@@ -334,7 +335,7 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
         };
     }
-    double fak = (1e-7/num_quad_points);
+    double fak = (MU0_OVER_4PI/num_quad_points);
     double* gamma_j_ptr = &(gamma(0, 0));
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
@@ -478,7 +479,7 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
             Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
-    double fak = (1e-7/num_quad_points);
+    double fak = (MU0_OVER_4PI/num_quad_points);
     double* gamma_j_ptr = &(gamma(0, 0));
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we

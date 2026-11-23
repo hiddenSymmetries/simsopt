@@ -2,6 +2,7 @@ import logging
 
 import numpy as np
 import warnings
+from scipy import constants
 from scipy.special import ellipk, ellipe
 try:
     from sympy.parsing.sympy_parser import parse_expr
@@ -356,7 +357,7 @@ class CircularCoil(MagneticField):
     def __init__(self, r0=0.1, center=[0, 0, 0], I=5e5/np.pi, normal=[0, 0]):
         MagneticField.__init__(self)
         self.r0 = r0
-        self.Inorm = I*4e-7
+        self.Inorm = I*constants.mu_0/np.pi
         self.center = center
         self.normal = normal
 
