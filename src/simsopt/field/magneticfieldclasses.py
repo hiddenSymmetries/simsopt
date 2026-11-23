@@ -384,7 +384,7 @@ class CircularCoil(MagneticField):
 
     @property
     def I(self):
-        return self.Inorm * 25e5
+        return self.Inorm * np.pi / constants.mu_0
 
     def _rotmat(self):
         if len(self.normal) == 2:

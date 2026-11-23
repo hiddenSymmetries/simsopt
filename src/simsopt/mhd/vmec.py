@@ -12,7 +12,6 @@ from typing import Optional
 from datetime import datetime
 
 import numpy as np
-from scipy import constants
 from scipy.io import netcdf_file
 from scipy.integrate import quad
 
@@ -916,7 +915,7 @@ class Vmec(Optimizable):
         """
         self.run()
         bvco = self.wout.bvco[-1] * 1.5 - self.wout.bvco[-2] * 0.5
-        mu0 = constants.mu_0
+        mu0 = 4 * np.pi * (1.0e-7)
         # The formula in the next line follows from Ampere's law:
         # \int \vec{B} dot (d\vec{r} / d phi) d phi = mu_0 I.
         return 2 * np.pi * bvco / mu0

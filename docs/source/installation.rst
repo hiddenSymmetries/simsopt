@@ -11,7 +11,7 @@ Requirements
 .. _simsopt: https://github.com/hiddenSymmetries/simsopt
 
 `simsopt`_ is a python package focused on stellarator optimization
-and requires python version 3.9 or higher. `simsopt`_ also requires
+and requires python version 3.10 or higher. `simsopt`_ also requires
 some mandatory python packages, listed in
 :simsopt_file:`requirements.txt`
 and in the ``[dependencies]`` section of

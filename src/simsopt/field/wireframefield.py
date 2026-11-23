@@ -1,11 +1,12 @@
 import numpy as np
 import scipy as sp
+from scipy import constants
 import simsoptpp as sopp
 from .magneticfield import MagneticField
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 
-mu0 = sp.constants.mu_0
+mu0 = constants.mu_0
 
 __all__ = ['WireframeField', 'enclosed_current']
 
