@@ -7,6 +7,7 @@ from simsopt.geo import (SurfaceRZFourier, Surface, CurveXYZFourier, CurveCurveD
                          MeanSquaredCurvature, ArclengthVariation,
                          CurveLength)
 from simsopt.geo import plot, curves_to_vtk, create_equally_spaced_curves
+from simsopt.geo.curveobjectives import curve_length_pure
 from simsopt._core.finite_difference import FiniteDifference
 from simsopt._core import make_optimizable
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
@@ -352,8 +353,8 @@ class CoilSet(Optimizable):
         Return the total length of the coils
         """
         multiplicity = len(self.coils) / len(self.base_coils)
-        lengthoptimizable = sum(CurveLength(coil.curve) for coil in self.base_coils)*multiplicity
-        return lengthoptimizable.J()
+        return multiplicity * sum(curve_length_pure(coil.curve.incremental_arclength())
+                                  for coil in self.base_coils)
 
     def to_vtk(self, filename, add_biotsavart=True, close=False):
         """
