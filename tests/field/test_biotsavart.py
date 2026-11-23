@@ -105,6 +105,46 @@ class Testing(unittest.TestCase):
             assert err_new < 0.55 * err
             err = err_new
 
+    def test_d2BdXdX_by_dcoilcoeff_reverse_taylortest(self):
+        np.random.seed(1)
+        curve = get_curve()
+        coil = Coil(curve, Current(1e4))
+        bs = BiotSavart([coil])
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points += 0.001 * (np.random.rand(*points.shape)-0.5)
+
+        bs.set_points(points)
+        curve_dofs = curve.x
+        B = bs.B()
+        dBdX = bs.dB_by_dX()
+        d2BdXdX = bs.d2B_by_dXdX()
+        J0 = np.sum(d2BdXdX**2)
+        v = np.zeros_like(B)
+        vgrad = np.zeros_like(dBdX)
+        vgradgrad = d2BdXdX
+        res = bs.B_and_dB_and_d2B_vjp(v, vgrad, vgradgrad)
+        dJ = res[2](curve)
+
+        # the B and dB parts of the vjp should be unaffected by the vgradgrad seed
+        # and match B_and_dB_vjp
+        res_ref = bs.B_and_dB_vjp(B, dBdX)
+        res_full = bs.B_and_dB_and_d2B_vjp(B, dBdX, np.zeros_like(d2BdXdX))
+        assert np.allclose(res_full[0](curve), res_ref[0](curve))
+        assert np.allclose(res_full[1](curve), res_ref[1](curve))
+
+        h = 1e-2 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
+        dJ_dh = 2*np.sum(dJ * h)
+        err = 1e6
+        for i in range(5, 10):
+            eps = 0.5**i
+            curve.x = curve_dofs + eps * h
+            d2BdXdXh = bs.d2B_by_dXdX()
+            Jh = np.sum(d2BdXdXh**2)
+            deriv_est = (Jh-J0)/eps
+            err_new = np.linalg.norm(deriv_est-dJ_dh)
+            assert err_new < 0.55 * err
+            err = err_new
+
     def subtest_biotsavart_dBdX_taylortest(self, idx):
         curve = get_curve()
         coil = Coil(curve, Current(1e4))
@@ -196,6 +236,62 @@ class Testing(unittest.TestCase):
         for idx in [0, 16]:
             with self.subTest(idx=idx):
                 self.subtest_biotsavart_d2B_by_dXdX_taylortest(idx)
+
+    def subtest_d3B_by_dXdXdX_is_symmetric(self, idx):
+        curve = get_curve()
+        coil = Coil(curve, Current(1e4))
+        bs = BiotSavart([coil])
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        points += 0.001 * (np.random.rand(*points.shape)-0.5)
+        bs.set_points(points)
+        d3B_by_dXdXdX = bs.d3B_by_dXdXdX()
+        self.assertEqual(d3B_by_dXdXdX.shape, (len(points), 3, 3, 3, 3))
+        # the tensor is fully symmetric in its three derivative indices (axes 1, 2, 3)
+        for l in range(3):
+            T = d3B_by_dXdXdX[idx, :, :, :, l]
+            assert np.allclose(T, np.transpose(T, (0, 2, 1)))
+            assert np.allclose(T, np.transpose(T, (1, 0, 2)))
+            assert np.allclose(T, np.transpose(T, (2, 1, 0)))
+
+    def test_d3B_by_dXdXdX_is_symmetric(self):
+        for idx in [0, 16]:
+            with self.subTest(idx=idx):
+                self.subtest_d3B_by_dXdXdX_is_symmetric(idx)
+
+    def subtest_biotsavart_d3B_by_dXdXdX_taylortest(self, idx):
+        curve = get_curve()
+        coil = Coil(curve, Current(1e4))
+        bs = BiotSavart([coil])
+        points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        bs.set_points(points)
+        d3B_by_dXdXdX = bs.d3B_by_dXdXdX()
+        for d1 in range(3):
+            for d2 in range(3):
+                for d3 in range(3):
+                    third_deriv = d3B_by_dXdXdX[idx, d1, d2, d3]
+                    err = 1e6
+                    for i in range(5, 10):
+                        eps = 0.5**i
+
+                        ed3 = np.zeros((1, 3))
+                        ed3[0, d3] = 1.
+
+                        bs.set_points(points + eps * ed3)
+                        d2B_dXdXp = bs.d2B_by_dXdX()[idx, d1, d2]
+
+                        bs.set_points(points - eps * ed3)
+                        d2B_dXdXm = bs.d2B_by_dXdX()[idx, d1, d2]
+
+                        third_deriv_est = (d2B_dXdXp - d2B_dXdXm)/(2. * eps)
+
+                        new_err = np.linalg.norm(third_deriv-third_deriv_est)
+                        assert new_err < 0.30 * err
+                        err = new_err
+
+    def test_biotsavart_d3B_by_dXdXdX_taylortest(self):
+        for idx in [0, 16]:
+            with self.subTest(idx=idx):
+                self.subtest_biotsavart_d3B_by_dXdXdX_taylortest(idx)
 
     def test_biotsavart_B_is_curlA(self):
         curve = get_curve()

@@ -58,6 +58,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_B", &biot_savart_B);
     m.def("biot_savart_vjp", &biot_savart_vjp);
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
+    m.def("biot_savart_gradgradB_vjp_graph", &biot_savart_gradgradB_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
 
     // Functions below are implemented for permanent magnet optimization
