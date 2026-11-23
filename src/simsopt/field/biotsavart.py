@@ -27,35 +27,74 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         sopp.BiotSavart.__init__(self, coils)
         MagneticField.__init__(self, depends_on=coils)
 
-    def dB_by_dcoilcurrents(self, compute_derivatives=0):
+    def _dB_by_dcoilcurrents_ref(self, compute_derivatives=0):
+        """
+        As :obj:`dB_by_dcoilcurrents`, but returns the cached arrays
+        themselves. They are overwritten in place by later evaluations, so
+        read them immediately and do not modify or hold on to them.
+        """
         points = self.get_points_cart_ref()
         npoints = len(points)
         ncoils = len(self._coils)
-        if any([not self.fieldcache_get_status(f'B_{i}') for i in range(ncoils)]):
+        if any([not self._fieldcache_get_status(f'B_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 0
             self.compute(compute_derivatives)
-        self._dB_by_dcoilcurrents = [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(ncoils)]
+        self._dB_by_dcoilcurrents = [self._fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(ncoils)]
         return self._dB_by_dcoilcurrents
 
-    def d2B_by_dXdcoilcurrents(self, compute_derivatives=1):
+    def dB_by_dcoilcurrents(self, compute_derivatives=0):
+        r"""
+        Returns a list with one `(npoints, 3)` array per coil, containing
+        :math:`\partial_{I_k} \mathbf{B}(\mathbf{x}_i)`. The arrays are copies
+        and are not updated by later evaluations.
+        """
+        return [np.array(b) for b in self._dB_by_dcoilcurrents_ref(compute_derivatives)]
+
+    def _d2B_by_dXdcoilcurrents_ref(self, compute_derivatives=1):
+        """
+        As :obj:`d2B_by_dXdcoilcurrents`, but returns the cached arrays
+        themselves. They are overwritten in place by later evaluations, so
+        read them immediately and do not modify or hold on to them.
+        """
         points = self.get_points_cart_ref()
         npoints = len(points)
         ncoils = len(self._coils)
-        if any([not self.fieldcache_get_status(f'dB_{i}') for i in range(ncoils)]):
+        if any([not self._fieldcache_get_status(f'dB_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 1
             self.compute(compute_derivatives)
-        self._d2B_by_dXdcoilcurrents = [self.fieldcache_get_or_create(f'dB_{i}', [npoints, 3, 3]) for i in range(ncoils)]
+        self._d2B_by_dXdcoilcurrents = [self._fieldcache_get_or_create(f'dB_{i}', [npoints, 3, 3]) for i in range(ncoils)]
         return self._d2B_by_dXdcoilcurrents
 
-    def d3B_by_dXdXdcoilcurrents(self, compute_derivatives=2):
+    def d2B_by_dXdcoilcurrents(self, compute_derivatives=1):
+        r"""
+        Returns a list with one `(npoints, 3, 3)` array per coil, containing
+        :math:`\partial_{I_k} \nabla \mathbf{B}(\mathbf{x}_i)`. The arrays are
+        copies and are not updated by later evaluations.
+        """
+        return [np.array(b) for b in self._d2B_by_dXdcoilcurrents_ref(compute_derivatives)]
+
+    def _d3B_by_dXdXdcoilcurrents_ref(self, compute_derivatives=2):
+        """
+        As :obj:`d3B_by_dXdXdcoilcurrents`, but returns the cached arrays
+        themselves. They are overwritten in place by later evaluations, so
+        read them immediately and do not modify or hold on to them.
+        """
         points = self.get_points_cart_ref()
         npoints = len(points)
         ncoils = len(self._coils)
-        if any([not self.fieldcache_get_status(f'ddB_{i}') for i in range(ncoils)]):
+        if any([not self._fieldcache_get_status(f'ddB_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 2
             self.compute(compute_derivatives)
-        self._d3B_by_dXdXdcoilcurrents = [self.fieldcache_get_or_create(f'ddB_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
+        self._d3B_by_dXdXdcoilcurrents = [self._fieldcache_get_or_create(f'ddB_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
         return self._d3B_by_dXdXdcoilcurrents
+
+    def d3B_by_dXdXdcoilcurrents(self, compute_derivatives=2):
+        r"""
+        Returns a list with one `(npoints, 3, 3, 3)` array per coil, containing
+        :math:`\partial_{I_k} \nabla\nabla \mathbf{B}(\mathbf{x}_i)`. The
+        arrays are copies and are not updated by later evaluations.
+        """
+        return [np.array(b) for b in self._d3B_by_dXdXdcoilcurrents_ref(compute_derivatives)]
 
     def B_and_dB_vjp(self, v, vgrad):
         r"""
@@ -79,9 +118,9 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
                                    res_gamma, res_gammadash, vgrad, res_grad_gamma, res_grad_gammadash)
 
-        dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
+        dB_by_dcoilcurrents = self._dB_by_dcoilcurrents_ref()
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
-        d2B_by_dXdcoilcurrents = self.d2B_by_dXdcoilcurrents()
+        d2B_by_dXdcoilcurrents = self._d2B_by_dXdcoilcurrents_ref()
         res_grad_current = [np.sum(vgrad * d2B_by_dXdcoilcurrents[i]) for i in range(len(d2B_by_dXdcoilcurrents))]
 
         res = (
@@ -114,39 +153,78 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         points = self.get_points_cart_ref()
         sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
                                    res_gamma, res_gammadash, [], [], [])
-        dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
+        dB_by_dcoilcurrents = self._dB_by_dcoilcurrents_ref()
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
 
-    def dA_by_dcoilcurrents(self, compute_derivatives=0):
+    def _dA_by_dcoilcurrents_ref(self, compute_derivatives=0):
+        """
+        As :obj:`dA_by_dcoilcurrents`, but returns the cached arrays
+        themselves. They are overwritten in place by later evaluations, so
+        read them immediately and do not modify or hold on to them.
+        """
         points = self.get_points_cart_ref()
         npoints = len(points)
         ncoils = len(self._coils)
-        if any([not self.fieldcache_get_status(f'A_{i}') for i in range(ncoils)]):
+        if any([not self._fieldcache_get_status(f'A_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 0
-            self.compute(compute_derivatives)
-        self._dA_by_dcoilcurrents = [self.fieldcache_get_or_create(f'A_{i}', [npoints, 3]) for i in range(ncoils)]
+            self.compute_A(compute_derivatives)
+        self._dA_by_dcoilcurrents = [self._fieldcache_get_or_create(f'A_{i}', [npoints, 3]) for i in range(ncoils)]
         return self._dA_by_dcoilcurrents
 
-    def d2A_by_dXdcoilcurrents(self, compute_derivatives=1):
+    def dA_by_dcoilcurrents(self, compute_derivatives=0):
+        r"""
+        Returns a list with one `(npoints, 3)` array per coil, containing
+        :math:`\partial_{I_k} \mathbf{A}(\mathbf{x}_i)`. The arrays are copies
+        and are not updated by later evaluations.
+        """
+        return [np.array(a) for a in self._dA_by_dcoilcurrents_ref(compute_derivatives)]
+
+    def _d2A_by_dXdcoilcurrents_ref(self, compute_derivatives=1):
+        """
+        As :obj:`d2A_by_dXdcoilcurrents`, but returns the cached arrays
+        themselves. They are overwritten in place by later evaluations, so
+        read them immediately and do not modify or hold on to them.
+        """
         points = self.get_points_cart_ref()
         npoints = len(points)
         ncoils = len(self._coils)
-        if any([not self.fieldcache_get_status(f'dA_{i}') for i in range(ncoils)]):
+        if any([not self._fieldcache_get_status(f'dA_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 1
-            self.compute(compute_derivatives)
-        self._d2A_by_dXdcoilcurrents = [self.fieldcache_get_or_create(f'dA_{i}', [npoints, 3, 3]) for i in range(ncoils)]
+            self.compute_A(compute_derivatives)
+        self._d2A_by_dXdcoilcurrents = [self._fieldcache_get_or_create(f'dA_{i}', [npoints, 3, 3]) for i in range(ncoils)]
         return self._d2A_by_dXdcoilcurrents
 
-    def d3A_by_dXdXdcoilcurrents(self, compute_derivatives=2):
+    def d2A_by_dXdcoilcurrents(self, compute_derivatives=1):
+        r"""
+        Returns a list with one `(npoints, 3, 3)` array per coil, containing
+        :math:`\partial_{I_k} \nabla \mathbf{A}(\mathbf{x}_i)`. The arrays are
+        copies and are not updated by later evaluations.
+        """
+        return [np.array(a) for a in self._d2A_by_dXdcoilcurrents_ref(compute_derivatives)]
+
+    def _d3A_by_dXdXdcoilcurrents_ref(self, compute_derivatives=2):
+        """
+        As :obj:`d3A_by_dXdXdcoilcurrents`, but returns the cached arrays
+        themselves. They are overwritten in place by later evaluations, so
+        read them immediately and do not modify or hold on to them.
+        """
         points = self.get_points_cart_ref()
         npoints = len(points)
         ncoils = len(self._coils)
-        if any([not self.fieldcache_get_status(f'ddA_{i}') for i in range(ncoils)]):
+        if any([not self._fieldcache_get_status(f'ddA_{i}') for i in range(ncoils)]):
             assert compute_derivatives >= 2
-            self.compute(compute_derivatives)
-        self._d3A_by_dXdXdcoilcurrents = [self.fieldcache_get_or_create(f'ddA_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
+            self.compute_A(compute_derivatives)
+        self._d3A_by_dXdXdcoilcurrents = [self._fieldcache_get_or_create(f'ddA_{i}', [npoints, 3, 3, 3]) for i in range(ncoils)]
         return self._d3A_by_dXdXdcoilcurrents
+
+    def d3A_by_dXdXdcoilcurrents(self, compute_derivatives=2):
+        r"""
+        Returns a list with one `(npoints, 3, 3, 3)` array per coil, containing
+        :math:`\partial_{I_k} \nabla\nabla \mathbf{A}(\mathbf{x}_i)`. The
+        arrays are copies and are not updated by later evaluations.
+        """
+        return [np.array(a) for a in self._d3A_by_dXdXdcoilcurrents_ref(compute_derivatives)]
 
     def A_and_dA_vjp(self, v, vgrad):
         r"""
@@ -170,9 +248,9 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         sopp.biot_savart_vector_potential_vjp_graph(points, gammas, gammadashs, currents, v,
                                                     res_gamma, res_gammadash, vgrad, res_grad_gamma, res_grad_gammadash)
 
-        dA_by_dcoilcurrents = self.dA_by_dcoilcurrents()
+        dA_by_dcoilcurrents = self._dA_by_dcoilcurrents_ref()
         res_current = [np.sum(v * dA_by_dcoilcurrents[i]) for i in range(len(dA_by_dcoilcurrents))]
-        d2A_by_dXdcoilcurrents = self.d2A_by_dXdcoilcurrents()
+        d2A_by_dXdcoilcurrents = self._d2A_by_dXdcoilcurrents_ref()
         res_grad_current = [np.sum(vgrad * d2A_by_dXdcoilcurrents[i]) for i in range(len(d2A_by_dXdcoilcurrents))]
 
         res = (
@@ -205,7 +283,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         points = self.get_points_cart_ref()
         sopp.biot_savart_vector_potential_vjp_graph(points, gammas, gammadashs, currents, v,
                                                     res_gamma, res_gammadash, [], [], [])
-        dA_by_dcoilcurrents = self.dA_by_dcoilcurrents()
+        dA_by_dcoilcurrents = self._dA_by_dcoilcurrents_ref()
         res_current = [np.sum(v * dA_by_dcoilcurrents[i]) for i in range(len(dA_by_dcoilcurrents))]
         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
 

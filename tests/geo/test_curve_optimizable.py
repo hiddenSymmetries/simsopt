@@ -5,19 +5,11 @@ from monty.tempfile import ScratchDir
 
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curve import RotatedCurve
-from simsopt.geo import parameters
 from simsopt.geo.curveobjectives import CurveLength
 from simsopt.objectives.least_squares import LeastSquaresProblem
 from simsopt.solve.serial import least_squares_serial_solve
 
-parameters['jit'] = False
 
-# MJL 2025-01-24: Eventually we should get this test working,
-# but for some reason the objective is giving NaNs in
-# the CI. I can't reproduce this problem on my local machine.
-
-
-@unittest.skip
 class Testing(unittest.TestCase):
 
     def subtest_curve_length_optimisation(self, rotated):
@@ -26,8 +18,9 @@ class Testing(unittest.TestCase):
         nfp = 5
         curve = CurveRZFourier(nquadrature, nfourier, nfp, True)
 
-        # Initialize the Fourier amplitudes to some random values
-        x0 = np.random.rand(curve.dof_size) - 0.5
+        # Initialize the Fourier amplitudes to reproducible pseudo-random values
+        rng = np.random.default_rng(1)
+        x0 = rng.random(curve.dof_size) - 0.5
         x0[0] = 3.0
         curve.x = x0
         print('Initial curve dofs: ', curve.x)

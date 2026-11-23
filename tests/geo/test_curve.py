@@ -15,7 +15,6 @@ from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFou
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces, _setup_uniform_grid_in_bounding_box
-from simsopt.geo import parameters
 from simsopt.configs.zoo import get_data
 from simsopt.field import BiotSavart, Current, coils_via_symmetries, Coil
 from simsopt.field.coil import coils_to_makegrid
@@ -32,8 +31,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.INFO)
-
-parameters['jit'] = False
 
 
 def taylor_test(f, df, x, epsilons=None, direction=None):
@@ -187,6 +184,55 @@ class Testing(unittest.TestCase):
             ntor = 2
             # nfp = 2 and ntor = 2 here, so an exception should be raised
             _ = CurveXYZFourierSymmetries(100, order, nfp, True, ntor=ntor, x0=np.ones(3*order+1))
+
+    def test_get_dofs_not_updated_by_later_dof_changes(self):
+        """
+        ``get_dofs()`` must return a snapshot of the DOFs, not the curve's
+        internal ``coefficients`` buffer.
+
+        ``CurveHelical`` and ``CurveXYZFourierSymmetries`` store their DOFs in
+        ``self.coefficients`` and ``set_dofs_impl`` overwrites that array in
+        place. If ``get_dofs()`` returned the array itself, a caller holding
+        the result (including a pending JAX computation that read it in place)
+        would see later DOF changes. For each class, built with and without
+        ``x0``, hold a ``get_dofs()`` result, change the DOFs through ``x``,
+        ``set`` and ``full_x``, and check that the held array is unchanged
+        and that a fresh ``get_dofs()`` matches ``x``.
+        """
+        def make_curves():
+            # The quadrature count and constructor arguments are arbitrary,
+            # because the test never evaluates the curve geometry, but each
+            # curve needs at least 2 DOFs for the ``set`` branch below. Any
+            # initial DOF values work for the ``x0`` variants, as long as the
+            # first change alters them.
+            nquad = 50
+            constructors = [
+                ("CurveHelical", CurveHelical, (nquad, 2, 2, 1, 1.0, 0.5)),
+                ("CurveXYZFourierSymmetries", CurveXYZFourierSymmetries, (nquad, 2, 2, True)),
+            ]
+            for name, cls, args in constructors:
+                curve = cls(*args)
+                ndofs = curve.full_dof_size
+                yield name, curve
+                yield f"{name} with x0", cls(*args, x0=np.full(ndofs, 0.1))
+
+        for label, curve in make_curves():
+            new_x = np.linspace(0.2, 0.8, curve.x.size)
+            for how in ("x", "set", "full_x"):
+                old_x = curve.x.copy()
+                held = curve.get_dofs()
+                if how == "x":
+                    curve.x = new_x
+                elif how == "set":
+                    curve.set(0, new_x[0])
+                    curve.set(1, new_x[1])
+                else:
+                    curve.full_x = new_x
+                np.testing.assert_array_equal(held, old_x,
+                                              err_msg=f"{label}: get_dofs() result changed after setting {how}")
+                np.testing.assert_array_equal(curve.get_dofs(), curve.x,
+                                              err_msg=f"{label}: get_dofs() disagrees with x after setting {how}")
+                new_x = new_x + 0.1
 
     def test_curvexyzfouriersymmetries_to_RZFourier(self):
         """

@@ -96,13 +96,24 @@ build-dir = "build/{wheel_tag}"
 [tool.ruff]
 src = ["src/simsopt"] 
 lint.ignore = ["E226","E265","E266","E4","E501","E701","E702","E712","E722","E731","E741","F403","F405","F406","W5"]
+lint.extend-select = ["TID251"]
 extend-exclude = ["thirdparty"]
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"jax.jit".msg = "Use simsopt.geo.jit.jit so NumPy arguments are copied safely."
+"jax.experimental.pjit.pjit".msg = "Deprecated alias of jax.jit; use simsopt.geo.jit.jit so NumPy arguments are copied safely."
+"jax.pmap".msg = "Dispatches asynchronously and may read NumPy arguments in place; copy them first, as simsopt.geo.jit.jit does."
+"jax.shard_map".msg = "Dispatches asynchronously and may read NumPy arguments in place; copy them first, as simsopt.geo.jit.jit does."
+"jax.experimental.shard_map.shard_map".msg = "Dispatches asynchronously and may read NumPy arguments in place; copy them first, as simsopt.geo.jit.jit does."
+"jax.device_put".msg = "May return a JAX array that shares memory with a NumPy array, which simsopt overwrites in place; use jnp.array to copy instead."
+"jax.dlpack.from_dlpack".msg = "Returns a JAX array that shares memory with its source, which simsopt may overwrite in place; use jnp.array to copy instead."
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402","F401"]
 "src/simsopt/field/magneticfieldclasses.py" = ["E743"]
+"src/simsopt/geo/jit.py" = ["TID251"]
 "src/simsopt/mhd/bootstrap.py" = ["F841"]
 "src/simsopt/mhd/vmec_diagnostics.py" = ["F841"]
 "tests/verify_MPI_not_initialized.py" = ["F401"]
+"tests/geo/test_jit.py" = ["TID251"]
 "tests/geo/test_plot.py" = ["F401"]
 "tests/geo/test_curve.py" = ["F401"]
 "tests/geo/test_surface.py" = ["F401"]

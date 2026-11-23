@@ -45,18 +45,27 @@ class WireframeField(sopp.WireframeField, MagneticField):
         -------
             dB_by_dsegmentcurrents: list of arrays
                 Arrays of the requested derivatives, including one array for
-                each segment in the wireframe.
+                each segment in the wireframe. The arrays are copies and are
+                not updated by later evaluations.
         """
+        return [np.array(b) for b in
+                self._dB_by_dsegmentcurrents_ref(compute_derivatives)]
 
+    def _dB_by_dsegmentcurrents_ref(self, compute_derivatives):
+        """
+        As :obj:`dB_by_dsegmentcurrents`, but returns the cached arrays
+        themselves. They are overwritten in place by later evaluations, so
+        read them immediately and do not modify or hold on to them.
+        """
         points = self.get_points_cart_ref()
         n_points = len(points)
-        if any([not self.fieldcache_get_status(f'B_{i}')
+        if any([not self._fieldcache_get_status(f'B_{i}')
                 for i in range(self.wireframe.n_segments)]):
             assert compute_derivatives >= 0
             self.compute(compute_derivatives)
 
         self._dB_by_dcoilcurrents = \
-            [self.fieldcache_get_or_create(f'B_{i}', [n_points, 3])
+            [self._fieldcache_get_or_create(f'B_{i}', [n_points, 3])
              for i in range(self.wireframe.n_segments)]
         return self._dB_by_dcoilcurrents
 
@@ -99,7 +108,7 @@ class WireframeField(sopp.WireframeField, MagneticField):
 
         matrix = np.ascontiguousarray(
             np.zeros((n_points, self.wireframe.n_segments)))
-        dB_dsc = self.dB_by_dsegmentcurrents(0)
+        dB_dsc = self._dB_by_dsegmentcurrents_ref(0)
         for i in range(self.wireframe.n_segments):
             dB_dsc_i = dB_dsc[i].reshape(n.shape)
             matrix[:, i] = (fac*np.sum(dB_dsc_i * unitn, axis=2)).reshape((-1))

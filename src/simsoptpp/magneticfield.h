@@ -33,7 +33,12 @@ class MagneticField {
      *  - all functions have a `_ref` version, e.g. `Bfield.B_ref()` which
      *    returns a reference to the array in the cache. this should be used when
      *    performance is key and when the user guarantees that the array is only
-     *    read and not modified.
+     *    read and not modified. The cached array is overwritten in place by
+     *    later evaluations, so copy it before holding on to it. In Python
+     *    these are private, e.g. `Bfield._B_ref()`, except the points
+     *    accessors `get_points_cart_ref()` and `get_points_cyl_ref()`. The
+     *    old public Python names, e.g. `Bfield.B_ref()`, remain as deprecated
+     *    aliases that emit a DeprecationWarning.
      */
     public:
         using Tensor1 = T<double, 1, xt::layout_type::row_major>;
