@@ -3,7 +3,6 @@ import json
 
 import numpy as np
 
-from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves, create_equally_spaced_planar_curves
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
@@ -16,8 +15,6 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.configs.zoo import get_data
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 import simsoptpp as sopp
-
-parameters['jit'] = False
 
 
 class Testing(unittest.TestCase):

@@ -379,7 +379,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
         self.mpi = self.booz.mpi
 
-        BoozerMagneticField.__init__(self, self.booz.equil.wout.phi[-1]/(2*np.pi))
+        BoozerMagneticField.__init__(self, -self.booz.equil.wout.phi[-1]/(2*np.pi))
 
         if self.mpi is not None:
             if self.mpi.proc0_groups:

@@ -5,6 +5,7 @@ from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.curveobjectives import curve_length_pure
 import simsoptpp as sopp
 
 __all__ = ['Coil', 'RegularizedCoil', 'CircularRegularizedCoil', 'RectangularRegularizedCoil',
@@ -150,12 +151,16 @@ class RegularizedCoil(Coil):
         Returns:
             array (shape (n,3)): Array of forces per unit length along the coil curve.
         """
-        from .biotsavart import BiotSavart
         gammadash = self.curve.gammadash()
         gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
         tangent = gammadash / gammadash_norm
         mutual_coils = [c for c in source_coils if c is not self]
-        mutual_field = BiotSavart(mutual_coils).set_points(self.curve.gamma())
+        # The C++ field runs the same kernel as simsopt's BiotSavart but is not an
+        # Optimizable, so it is not registered as a child of the coils and is freed
+        # on return. A BiotSavart would stay registered, and be notified of every DOF
+        # change, until the next cyclic garbage collection.
+        mutual_field = sopp.BiotSavart(mutual_coils)
+        mutual_field.set_points_cart(self.curve.gamma())
         B_mutual = mutual_field.B()
         mutualforce = np.cross(self.current.get_value() * tangent, B_mutual)
         selfforce = self.self_force()
@@ -770,8 +775,6 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
         Ifree (bool, optional) : Whether the coil current is free (default: False).
         Lfree (bool, optional) : Whether the coil geometry is free (default: False).
     """
-    from simsopt.geo import CurveLength
-
     assert len(curves) == len(currents)
     ncoils = len(curves)
     if stellsym:
@@ -795,7 +798,7 @@ def coils_to_focus(filename, curves, currents, nfp=1, stellsym=False, Ifree=Fals
             ys = np.concatenate(([0.], xyz[1, 1::2]))
             zc = xyz[2, ::2]
             zs = np.concatenate(([0.], xyz[2, 1::2]))
-            length = CurveLength(curves[i]).J()
+            length = curve_length_pure(curves[i].incremental_arclength())
             nseg = len(curves[i].quadpoints)
             f.write('#------------{:d}----------- \n'.format(i+1))
             f.write('# coil_type  symm  coil_name \n')

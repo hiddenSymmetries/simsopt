@@ -7,10 +7,8 @@ from simsopt.geo import SurfaceXYZTensorFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveTorsion
 from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty, MPIOptimizable
-from simsopt.geo import parameters
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 from simsopt._core.util import parallel_loop_bounds
-parameters['jit'] = False
 try:
     from mpi4py import MPI
 except:
