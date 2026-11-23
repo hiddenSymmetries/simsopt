@@ -595,6 +595,23 @@ class UtilTests(unittest.TestCase):
         np.testing.assert_allclose(surf1.x, surf2.x, atol=1e-14)
 
 
+class CachedArrayTests(unittest.TestCase):
+    def test_cached_arrays_are_not_rewritten_after_dof_change(self):
+        """An array returned by a surface is unchanged when the dofs change."""
+        rng = np.random.default_rng(0)
+        for name in ("gamma", "gammadash1", "gammadash2", "normal", "unitnormal"):
+            with self.subTest(quantity=name):
+                surface = SurfaceRZFourier(nfp=2, mpol=2, ntor=2)
+                surface.set_rc(0, 0, 1.0)
+                surface.set_rc(1, 0, 0.3)
+                surface.set_zs(1, 0, 0.3)
+                held = getattr(surface, name)()
+                held_values = held.copy()
+                surface.x = surface.x + 1e-2 * rng.standard_normal(surface.x.size)
+                self.assertFalse(np.array_equal(getattr(surface, name)(), held_values))
+                np.testing.assert_array_equal(held, held_values)
+
+
 class DofNames(unittest.TestCase):
     """
     Check that the dof names correspond to the correct values within each
