@@ -123,7 +123,7 @@ class VirtualCasing:
     """
 
     @classmethod
-    def from_vmec(cls, vmec, src_nphi, src_ntheta=None, trgt_nphi=None, trgt_ntheta=None, use_stellsym=True, digits=6, filename="auto"):
+    def from_vmec(cls, vmec, src_nphi, src_ntheta=None, trgt_nphi=None, trgt_ntheta=None, use_stellsym=True, digits=8, filename="auto"):
         """
         Given a :obj:`~simsopt.mhd.vmec.Vmec` object, compute the contribution
         to the total magnetic field due to currents outside the plasma.
@@ -155,7 +155,7 @@ class VirtualCasing:
             trgt_ntheta: Number of grid points poloidally for the output of the calculation.
               If unspecified, ``src_ntheta`` will be used.
             use_stellsym: whether to exploit stellarator symmetry in the calculation.
-            digits: Approximate number of digits of precision for the calculation.
+            digits: Approximate number of digits of precision for the calculation (default: 8).
             filename: If not ``None``, the results of the virtual casing calculation
               will be saved in this file. For the default value of ``"auto"``, the
               filename will automatically be set to ``"vcasing_<extension>.nc"``
