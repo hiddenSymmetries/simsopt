@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include "regular_grid_interpolant_3d.h"
 #include <xtensor/containers/xarray.hpp>
@@ -91,17 +92,26 @@ void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double y, doubl
     if(z >= zmax) z -= _EPS_;
     else if (z <= zmin) z += _EPS_;
 
-    int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xmesh[xidx] <= x <= xs[xidx+1]
-    int yidx = int(ny*(y-ymin)/(ymax-ymin));
-    int zidx = int(nz*(z-zmin)/(zmax-zmin));
-    if(!out_of_bounds_ok){
-        if(xidx < 0 || xidx >= nx)
-            throw std::runtime_error(fmt::format("xidxs={} not within [0, {}]", xidx, nx-1));
-        if(yidx < 0 || yidx >= ny)
-            throw std::runtime_error(fmt::format("yidxs={} not within [0, {}]", yidx, ny-1));
-        if(zidx < 0 || zidx >= nz)
-            throw std::runtime_error(fmt::format("zidxs={} not within [0, {}]", zidx, nz-1));
+    const std::array<double, 3> scaled_indices = {
+        nx*(x-xmin)/(xmax-xmin),
+        ny*(y-ymin)/(ymax-ymin),
+        nz*(z-zmin)/(zmax-zmin)};
+    const std::array<int, 3> cell_counts = {nx, ny, nz};
+    // A point is inside when every scaled index is in [0, n); NaN fails the
+    // comparisons too. Inside, truncation to int is the floor. (std::to_string:
+    // the bundled fmt overlaps a memcpy when it formats a double.)
+    for (int axis = 0; axis < 3; ++axis) {
+        if (!(scaled_indices[axis] >= 0 && scaled_indices[axis] < cell_counts[axis])) {
+            if(out_of_bounds_ok)
+                return;
+            throw std::runtime_error(std::string(1, "xyz"[axis]) + "idxs="
+                + std::to_string(scaled_indices[axis]) + " not within [0, "
+                + std::to_string(cell_counts[axis]) + ")");
+        }
     }
+    int xidx = int(scaled_indices[0]);
+    int yidx = int(scaled_indices[1]);
+    int zidx = int(scaled_indices[2]);
     double xlocal = (x-xmesh[xidx])/hx;
     double ylocal = (y-ymesh[yidx])/hy;
     double zlocal = (z-zmesh[zidx])/hz;
@@ -125,12 +135,15 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
     if constexpr (xsimd::simd_type<double>::size >= 3){
         // batches have no per-lane operator[] anymore; build the 3-lane input via a
         // small contiguous buffer + load, and read results back via store + index.
-        
-        alignas(xs::default_arch::alignment()) double xyz_arr[4] {x, y, z, 0.0};
+        // both buffers hold a full batch (simdcount lanes); unused lanes are zero.
+        // The length is at least 3 so that this discarded branch still compiles
+        // when a batch is narrower (clang checks it, e.g. 2 lanes with SSE2).
+        constexpr int nlanes = std::max(simdcount, 3);
+        alignas(xs::default_arch::alignment()) double xyz_arr[nlanes] = {x, y, z};
         simd_t xyz = xs::load_aligned(xyz_arr);
         for (int k = 0; k < degree+1; ++k) {
             simd_t temp = this->rule.basis_fun(k, xyz);
-            alignas(xs::default_arch::alignment()) double temp_arr[4];
+            alignas(xs::default_arch::alignment()) double temp_arr[nlanes];
             temp.store_aligned(temp_arr);
             pkxs[k] = temp_arr[0];
             pkys[k] = temp_arr[1];

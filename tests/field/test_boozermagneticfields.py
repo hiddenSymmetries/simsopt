@@ -23,6 +23,27 @@ if (MPI is not None) and (vmec is not None):
     from simsopt.mhd.boozer import Boozer
 
 
+class TestingFourierTransform(unittest.TestCase):
+    def test_fourier_transform_matches_serial_reference(self):
+        """fourier_transform_even/odd agree with a direct least-squares-style sum."""
+        import simsoptpp as sopp
+        rng = np.random.default_rng(1)
+        npoints = 20000
+        xm = np.array([0., 1., 1., 2., 2.])
+        xn = np.array([0., 0., 2., -2., 4.])
+        thetas = rng.uniform(0, 2 * np.pi, npoints)
+        zetas = rng.uniform(0, 2 * np.pi, npoints)
+        K = 1.0 + rng.standard_normal(npoints)
+        angles = xm[:, None] * thetas[None, :] - xn[:, None] * zetas[None, :]
+        for kind, basis, first in (("even", np.cos, 0), ("odd", np.sin, 1)):
+            values = basis(angles[first:])
+            expected = np.zeros(xm.size)
+            expected[first:] = (values @ K) / np.einsum("mp,mp->m", values, values)
+            actual = getattr(sopp, f"fourier_transform_{kind}")(K, xm, xn, thetas, zetas)
+            with self.subTest(transform=kind):
+                np.testing.assert_allclose(actual, expected, rtol=1e-10, atol=1e-12)
+
+
 class TestingAnalytic(unittest.TestCase):
     def test_boozeranalytic(self):
         etabar = 1.1

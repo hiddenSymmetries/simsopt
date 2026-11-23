@@ -1387,5 +1387,36 @@ class Testing(unittest.TestCase):
         assert curve2.x[6] == 8
         assert curve2.x[7] == 9
 
+    def test_cached_arrays_are_not_rewritten_after_dof_change(self):
+        """An array returned by a curve is unchanged when the dofs change."""
+        rng = np.random.default_rng(0)
+        for name in ("gamma", "gammadash", "gammadashdash", "kappa", "torsion"):
+            with self.subTest(quantity=name):
+                curve = CurveXYZFourier(32, 3)
+                curve.set("xc(1)", 1.0)
+                curve.set("ys(1)", 1.0)
+                curve.set("zs(2)", 0.1)
+                held = getattr(curve, name)()
+                held_values = held.copy()
+                curve.x = curve.x + 1e-2 * rng.standard_normal(curve.x.size)
+                self.assertFalse(np.array_equal(getattr(curve, name)(), held_values))
+                np.testing.assert_array_equal(held, held_values)
+
+    def test_curveplanarfourier_jacobians_follow_dofs(self):
+        """Jacobians after a dof change equal those of a fresh curve at the new dofs."""
+        rng = np.random.default_rng(0)
+        curve = CurvePlanarFourier(40, 3)
+        curve.x = rng.standard_normal(curve.x.size)
+        names = ("dgamma_by_dcoeff", "dgammadash_by_dcoeff",
+                 "dgammadashdash_by_dcoeff", "dgammadashdashdash_by_dcoeff")
+        for name in names:
+            getattr(curve, name)()
+        curve.x = rng.standard_normal(curve.x.size)
+        fresh = CurvePlanarFourier(40, 3)
+        fresh.x = curve.x
+        for name in names:
+            with self.subTest(jacobian=name):
+                np.testing.assert_array_equal(getattr(curve, name)(), getattr(fresh, name)())
+
 if __name__ == "__main__":
     unittest.main()
