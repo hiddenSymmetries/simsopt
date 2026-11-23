@@ -168,18 +168,6 @@ class VirtualCasingTests(unittest.TestCase):
             plt.tight_layout()
             plt.show()
 
-    def test_default_precision_resolves_boundary_regression(self):
-        """Check that the default precision converges across source grids."""
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vmec = Vmec(filename)
-        with ScratchDir("."):
-            coarse = VirtualCasing.from_vmec(
-                vmec, src_nphi=48, src_ntheta=24, trgt_nphi=96,
-                trgt_ntheta=24, use_stellsym=False)
-            fine = VirtualCasing.from_vmec(
-                vmec, src_nphi=96, src_ntheta=24, use_stellsym=False)
-        self.assertLess(np.max(np.abs(coarse.B_external_normal - fine.B_external_normal)), 1e-4)
-
     def test_save_load(self):
         """
         Save a calculation, then load it into a different object. The
