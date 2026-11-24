@@ -313,7 +313,7 @@ class QuasisymmetryTests(unittest.TestCase):
                 err_msg='Weight "stellopt_ornl" for normalization "B00" does not match precalculated value for a non-stellarator symmetric configuration.')
 
             surfs = b.bx.compute_surfs
-            self.assertEqual(surfs[0], 49, msg="Surface index is not the expected value. Wrong surface is being used in the calculation.")
+            self.assertEqual(surfs[0], 49, msg='Surface index is not the expected value. Wrong surface is being used in the calculation.')
 
 if __name__ == "__main__":
     unittest.main()
