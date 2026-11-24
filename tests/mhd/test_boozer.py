@@ -260,60 +260,60 @@ class QuasisymmetryTests(unittest.TestCase):
     @unittest.skipIf((booz_xform is None) or (vmec is None),
                      "vmec or booz_xform python package not found")
     def test_boozer_basic_non_stellsym(self):
-        """Check that we are close to precalculated quasisymmetry errors.
-        For a stellarator assymmetric configuration with less-used normalization flags to increase code coverage.
-        Also registers surfaces with a float instead of an iterable for code-coverage.
-        In practical code, this is redundant since the Quasisymmetry objective would register the needed surface automatically.
-        This is run for an unrealistically low number of iterations for the sake of speed."""
+        """
+        Check pinned quasisymmetry regression values for a
+        non-stellarator-symmetric configuration.
+        """
         with ScratchDir("."):
             v = Vmec(os.path.join(TEST_DIR, "input.basic_non_stellsym"))
             v.indata.niter_array[:2] = [100, 0]  # Low number of iterations
             b = Boozer(v, mpol=32, ntor=16)
-            # code coverage for the case where we register a float and not something iterable.
+            # Exercise registration with a scalar surface value.
             b.register(0.5)
-            J = Quasisymmetry(
-                b, s=0.5, helicity_m=1, helicity_n=0,
-                normalization="symmetric", weight="stellopt"
-            ).J()
+
+            J_stellopt = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0,
+                                       normalization="symmetric", weight="stellopt").J()
 
             index = b.s_to_index[0.5]
             bmnc = b.bx.bmnc_b[:, index]
             bmns = b.bx.bmns_b[:, index]
             xm = b.bx.xm_b
-            xn = b.bx.xn_b
-
-            symmetric = (xn == 0)
-            nonsymmetric = ~symmetric
+            xn = b.bx.xn_b / b.bx.nfp
+            symmetric_modes = (xn == 0)
             zero_mode = (xm == 0) & (xn == 0)
-
+            # The old regression used cosine-only symmetric normalization.
+            bnorm_cos_only = np.sqrt(
+                np.sum(bmnc[symmetric_modes] ** 2)
+            )
+            # The updated normalization also includes the allowed sine modes.
             bnorm = np.sqrt(
-                np.sum(bmnc[symmetric]**2)
-                + np.sum(bmns[symmetric & ~zero_mode]**2)
+                bnorm_cos_only**2
+                + np.sum(bmns[symmetric_modes & ~zero_mode] ** 2)
             )
-            coefficients = np.concatenate(
-                (bmnc[nonsymmetric], bmns[nonsymmetric])
-            )
-            expected = coefficients / bnorm / b.s_used[0.5]**2
-
+            # The cosine residual itself is unchanged; only its
+            # normalization changes.
             np.testing.assert_allclose(
-                J, expected,
-                err_msg='Weight "stellopt" with normalization "symmetric" '
-                        'does not match the full Boozer spectrum.'
-            )
-
-            J = Quasisymmetry(
-                b, s=0.5, helicity_m=1, helicity_n=0,
-                normalization="B00", weight="stellopt_ornl"
-            ).J()
-            expected = np.sqrt(np.sum(coefficients**2)) / bmnc[0]
-
+                J_stellopt[0], -3.2704931879062826 * bnorm_cos_only / bnorm,
+                err_msg='Weight "stellopt" for normalization "symmetric" does not match precalculated value for a non-stellarator symmetric configuration.')
+            # Pin the first cosine and sine residuals.
+            self.assertEqual(J_stellopt.size, 2016)
             np.testing.assert_allclose(
-                J, [expected],
-                err_msg='Weight "stellopt_ornl" does not match the full '
-                        'Boozer spectrum.'
-            )
+                J_stellopt[0], -3.244772151561435,
+                err_msg='Weight "stellopt" for normalization "symmetric" does not match precalculated value for a non-stellarator symmetric configuration.')
+            np.testing.assert_allclose(
+                J_stellopt[J_stellopt.size // 2], 0.020913449441396025,
+                err_msg='Weight "stellopt" for normalization "symmetric" does not match precalculated value for a non-stellarator symmetric configuration.')
+
+            J_stellopt_ornl = Quasisymmetry(b, s=0.5, helicity_m=1, helicity_n=0,
+                                            normalization="B00", weight="stellopt_ornl").J()
+
+            # Pin the scalar regression result, including sine residuals.
+            np.testing.assert_allclose(
+                J_stellopt_ornl, [0.81018252094588106],
+                err_msg='Weight "stellopt_ornl" for normalization "B00" does not match precalculated value for a non-stellarator symmetric configuration.')
+
             surfs = b.bx.compute_surfs
-            self.assertEqual(surfs[0], 49, msg='Surface index is not the expected value. Wrong surface is being used in the calculation.')
+            self.assertEqual(surfs[0], 49, msg="Surface index is not the expected value. Wrong surface is being used in the calculation.")
 
 if __name__ == "__main__":
     unittest.main()
