@@ -27,6 +27,7 @@ except ImportError:
     DescLinearGrid = None
 
 from simsopt.mhd import Vmec
+from simsopt.mhd.vmec_solver import Vmec2000Solver
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
@@ -937,7 +938,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         """make_rotating_ellipse() should give positive iota."""
         filename = str(TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres')
         with ScratchDir("."):
-            eq = Vmec(filename)
+            eq = Vmec(filename, solver=Vmec2000Solver())
             eq.indata.mpol = 4  # Lower resolution to expedite test
             eq.indata.ntor = 4
             eq.indata.ftol_array[:2] = [1e-8, 1e-10]

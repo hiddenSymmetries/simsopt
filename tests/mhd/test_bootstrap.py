@@ -8,7 +8,7 @@ from monty.tempfile import ScratchDir
 from simsopt.mhd.bootstrap import compute_trapped_fraction, \
     j_dot_B_Redl, RedlGeomVmec, RedlGeomBoozer, VmecRedlBootstrapMismatch
 from simsopt.mhd.profiles import ProfilePolynomial
-from simsopt.mhd.vmec import Vmec
+from . import Vmec2000 as Vmec  # these tests are written for VMEC2000
 from simsopt.mhd.boozer import Boozer
 from simsopt.util.constants import ELEMENTARY_CHARGE
 from . import TEST_DIR
