@@ -70,6 +70,8 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
+        # simsopt's version comes from git tags; vmecpp requires simsopt>=1.8.1.
+        fetch-depth: 0
 
     # We must run actions/checkout before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
@@ -182,7 +184,7 @@ jobs:
 
     - name: Install simsopt package
       run: |
-        python -m pip install -v .
+        python -m pip install -v ".[VMECPP]"
         python -m pip install --no-binary=mpi4py mpi4py
         # python -m pip install -v git+https://github.com/zhisong/pyoculus
         # python -m pip install py_spec h5py
