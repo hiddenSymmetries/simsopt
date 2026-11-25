@@ -94,7 +94,7 @@ def frenet_frame_pure(gammadash, gammadashdash, incremental_arclength):
     .. math::
         \mathbf{t} = \frac{1}{l} \mathbf{\gammadash}
 
-    where :math:`l` is the the derivative of arclength with respect 
+    where :math:`l` is the derivative of arclength with respect
     to the curve parameter. t = gammadash / |gammadash|.
 
     .. math::

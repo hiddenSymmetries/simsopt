@@ -22,6 +22,11 @@ class WireframeField(sopp.WireframeField, MagneticField):
 
     def __init__(self, wframe):
 
+        # The C++ field stores the node indices as int32, which would wrap silently.
+        segments = np.asarray(wframe.segments)
+        if segments.dtype.kind not in 'iu' or (segments.size > 0 and (
+                segments.min() < 0 or segments.max() > np.iinfo(np.int32).max)):
+            raise ValueError('wframe.segments must hold non-negative int32 node indices')
         sopp.WireframeField.__init__(self, wframe.nodes, wframe.segments,
                                      wframe.seg_signs, wframe.currents)
         MagneticField.__init__(self)

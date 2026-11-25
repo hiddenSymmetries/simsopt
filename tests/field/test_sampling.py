@@ -70,3 +70,24 @@ class SamplingTesting(unittest.TestCase):
         print("samples_in_range/nsamples", samples_in_range/nsamples)
         print("fraction of samples if uniform", (stop-start)**2/(nquadpoints**2))
         assert abs(samples_in_range/nsamples - area_of_subset/total_area) < 1e-2
+
+    def test_explicit_randomgen(self):
+        """Sampling with an explicit randomgen draws only from it: same seed, same samples, global RNG untouched."""
+        curve = CurveRZFourier(200, 1, 1, True)
+        curve.set_dofs(np.array([1., 0.9, 0.]))
+        surface = SurfaceRZFourier.from_nphi_ntheta(nfp=1, stellsym=True, mpol=1, ntor=0, nphi=40, ntheta=40)
+        surface.set_dofs(np.array([1., 0.8, 0.8]))
+        for draw, geometry in [(draw_uniform_on_curve, curve), (draw_uniform_on_surface, surface)]:
+            with self.subTest(draw=draw.__name__):
+                samples = []
+                for global_seed in [0, 1]:
+                    np.random.seed(global_seed)
+                    expected = np.random.rand()
+                    np.random.seed(global_seed)
+                    randomgen = np.random.RandomState(7)
+                    samples.append(draw(geometry, 50, randomgen=randomgen))
+                    self.assertEqual(np.random.rand(), expected)
+                    self.assertNotEqual(randomgen.rand(), np.random.RandomState(7).rand())
+                (xyz0, idxs0), (xyz1, idxs1) = samples
+                np.testing.assert_array_equal(xyz0, xyz1)
+                np.testing.assert_array_equal(idxs0, idxs1)

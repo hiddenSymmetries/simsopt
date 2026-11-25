@@ -463,10 +463,9 @@ class GSONDecoder(json.JSONDecoder):
                 modname = d["@module"]
                 classname = d["@class"]
                 if classname in GSONable.REDIRECT.get(modname, {}):
-                    modname = GSONable.REDIRECT[modname][classname][
-                        "@module"]
-                    classname = GSONable.REDIRECT[modname][classname][
-                        "@class"]
+                    redirect = GSONable.REDIRECT[modname][classname]
+                    modname = redirect["@module"]
+                    classname = redirect["@class"]
             elif "@module" in d and "@callable" in d:
                 modname = d["@module"]
                 objname = d["@callable"]
