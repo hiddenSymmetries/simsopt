@@ -112,7 +112,7 @@ def _B_at_point_from_coil_set_pure(pt, gammas, gammadashs, currents, exclude_ind
         )
 
     B = jnp.sum(vmap(from_j)(jnp.arange(n)), axis=0)
-    return B / npts * 1e-7
+    return B / npts * Biot_savart_prefactor
 
 
 def _mutual_B_field_at_point_pure(
@@ -300,7 +300,7 @@ def _coil_coil_inductances_pure(gammas, gammadashs, downsample, regularizations,
     # Now use a mask to replace the wrong diagonal with the correct numbers in diag_values
     diag_mask = jnp.eye(N, dtype=bool)
     Lij = jnp.where(diag_mask, diag_values, Lij)
-    return 1e-7 * Lij
+    return Biot_savart_prefactor * Lij
 
 
 def _coil_coil_inductances_inv_pure(gammas, gammadashs, downsample, regularizations):
@@ -617,7 +617,7 @@ def _net_fluxes_pure(gammas_targets, gammadashs_targets, gammas_sources, gammada
     # sum over the currents, and sum over the biot savart integral
     A_ext = jnp.sum(currents_sources[None, None, :, None] * jnp.sum(gammadashs_sources[None, None, :, :, :] / rij_norm[:, :, :, :, None], axis=-2), axis=-2) / jnp.shape(gammadashs_sources)[1]
     # Now sum over all the coil loops
-    return 1e-7 * jnp.sum(jnp.sum(A_ext * gammadashs_targets, axis=-1), axis=-1) / jnp.shape(gammadashs_targets)[1]
+    return Biot_savart_prefactor * jnp.sum(jnp.sum(A_ext * gammadashs_targets, axis=-1), axis=-1) / jnp.shape(gammadashs_targets)[1]
 
 
 def net_ext_fluxes_pure(gammadash, A_ext, downsample):

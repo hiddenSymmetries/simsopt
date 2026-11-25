@@ -1,3 +1,4 @@
+#include "constants.h"
 #include "biot_savart_vjp_impl.h"
 #include "biot_savart_vjp_py.h"
 
@@ -56,7 +57,7 @@ void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma
                 }
             }
         }
-        double fak = (currents[i] * 1e-7/gammas[i].shape(0));
+        double fak = (currents[i] * MU0_OVER_4PI/gammas[i].shape(0));
         res_B[i] *= fak;
         if(compute_dB)
             res_dB[i] *= fak;
@@ -88,7 +89,7 @@ void biot_savart_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& 
                     v, res_gamma[i], res_dgamma_by_dphi[i],
                     dummy, dummy, dummy);
 
-        double fak = (currents[i] * 1e-7/gammas[i].shape(0));
+        double fak = (currents[i] * MU0_OVER_4PI/gammas[i].shape(0));
         res_gamma[i] *= fak;
         res_dgamma_by_dphi[i] *= fak;
         if(compute_dB) {
@@ -123,7 +124,7 @@ void biot_savart_vector_potential_vjp_graph(Array& points, vector<Array>& gammas
                     v, res_gamma[i], res_dgamma_by_dphi[i],
                     dummy, dummy, dummy);
 
-        double fak = (currents[i] * 1e-7/gammas[i].shape(0));
+        double fak = (currents[i] * MU0_OVER_4PI/gammas[i].shape(0));
         res_gamma[i] *= fak;
         res_dgamma_by_dphi[i] *= fak;
         if(compute_dA) {

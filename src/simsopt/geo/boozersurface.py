@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import constants
 from scipy.linalg import lu
 from scipy.optimize import minimize, least_squares
 import simsoptpp as sopp
@@ -230,7 +231,7 @@ class BoozerSurface(Optimizable):
         else:
             sdofs = dofs[:-1]
             iota = dofs[-1]
-            G = 2. * np.pi * np.sum(np.abs([coil.current.get_value() for coil in self.biotsavart._coils])) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+            G = 2. * np.pi * np.sum(np.abs([coil.current.get_value() for coil in self.biotsavart._coils])) * (constants.mu_0 / (2 * np.pi))
 
         s = self.surface
         nphi = s.quadpoints_phi.size
@@ -885,7 +886,7 @@ class BoozerSurface(Optimizable):
 
         label = self.label
         if G is None:
-            G = 2. * np.pi * np.sum(np.abs([c.current.get_value() for c in self.biotsavart.coils])) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+            G = 2. * np.pi * np.sum(np.abs([c.current.get_value() for c in self.biotsavart.coils])) * (constants.mu_0 / (2 * np.pi))
         x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
         r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)

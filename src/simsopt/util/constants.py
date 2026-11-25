@@ -1,8 +1,10 @@
-PROTON_MASS = 1.67262192369e-27  # kg
-NEUTRON_MASS = 1.67492749804e-27  # kg
-ELEMENTARY_CHARGE = 1.602176634e-19  # C
-ONE_EV = 1.602176634e-19  # J
-# CODATA 2022: https://physics.nist.gov/cuu/Constants/Table/allascii.txt
-ALPHA_PARTICLE_MASS = 6.6446573450e-27  # kg
+"""Physical constants, taken from :mod:`scipy.constants` (current CODATA release)."""
+from scipy import constants as _constants
+
+PROTON_MASS = _constants.m_p  # kg
+NEUTRON_MASS = _constants.m_n  # kg
+ELEMENTARY_CHARGE = _constants.e  # C
+ONE_EV = _constants.eV  # J
+ALPHA_PARTICLE_MASS = _constants.physical_constants["alpha particle mass"][0]  # kg
 ALPHA_PARTICLE_CHARGE = 2*ELEMENTARY_CHARGE
 FUSION_ALPHA_PARTICLE_ENERGY = 3.52e6 * ONE_EV

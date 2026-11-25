@@ -2,6 +2,7 @@ from pathlib import Path
 import warnings
 
 import numpy as np
+from scipy import constants
 from pyevtk.hl import pointsToVTK
 
 from .._core.descriptor import OneofStrings
@@ -235,7 +236,7 @@ class PermanentMagnetGrid:
 
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
-            mu0 = 4 * np.pi * 1e-7
+            mu0 = constants.mu_0
             cell_vol = M0s * mu0 / B_max
             pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
         else:
@@ -388,7 +389,7 @@ class PermanentMagnetGrid:
                     contig(pm_grid.dipole_grid_xyz[:, 2]))
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
-            mu0 = 4 * np.pi * 1e-7
+            mu0 = constants.mu_0
             pm_grid.m_maxima = B_max * cell_vol / mu0
         else:
             if isinstance(m_maxima, float):

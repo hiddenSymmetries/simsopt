@@ -1,3 +1,4 @@
+#include "constants.h"
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
 #include <stdexcept>
@@ -40,7 +41,7 @@ void wireframe_field_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
         };
     }
 
-    double fak = 1e-7;
+    double fak = MU0_OVER_4PI;
     auto node0_vec = Vec3dSimd(node0[0], node0[1], node0[2]);
     auto node1_vec = Vec3dSimd(node1[0], node1[1], node1[2]);
 
@@ -182,7 +183,7 @@ void wireframe_field_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
             Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
-    double fak = 1e-7;
+    double fak = MU0_OVER_4PI;
     auto node0_vec = Vec3dStd(node0[0], node0[1], node0[2]);
     auto node1_vec = Vec3dStd(node1[0], node1[1], node1[2]);
 
