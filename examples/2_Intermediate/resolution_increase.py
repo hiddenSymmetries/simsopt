@@ -69,9 +69,11 @@ for step in range(3):
     # "real" optimization, remove the max_nfev parameter below.
     least_squares_mpi_solve(prob, mpi, grad=True, max_nfev=1)
 
-    # Preserve the output file from the last iteration, so it is not
-    # deleted when vmec runs again:
-    vmec.files_to_delete = []
+    # Save the wout file of this stage. All procs take part in the run,
+    # one writes:
+    vmec.run()
+    if mpi.proc0_world:
+        vmec.save_wout(f"wout_max_mode{max_mode}.nc")
 
     proc0_print(f"Done optimization with max_mode ={max_mode}. "
                 f"Final vmec iteration = {vmec.iter}")
