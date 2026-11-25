@@ -3,6 +3,7 @@
 import os
 import unittest
 
+from simsopt.util.mpi import MpiPartition
 from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline
 from simsopt.mhd.vmec import (
     REQUIRED_WOUT_FIELDS,
@@ -56,7 +57,8 @@ class VmecSolverProtocolTests(unittest.TestCase):
 
     def _assert_initialized_solver_conforms(self, solver):
         # Boundary and scalars are views onto indata, so exist only after initialize():
-        solver.initialize(os.path.join(TEST_DIR, "input.li383_low_res"), None, verbose=False)
+        solver.initialize(os.path.join(TEST_DIR, "input.li383_low_res"), MpiPartition(ngroups=1),
+                          verbose=False)
         self.assertIsInstance(solver, VmecSolverProtocol)
 
     def test_vmec2000_solver_conforms(self):

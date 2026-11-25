@@ -52,6 +52,14 @@ simsopt.mhd.vmec module
    :undoc-members:
    :show-inheritance:
 
+simsopt.mhd.vmec\_solver module
+-------------------------------
+
+.. automodule:: simsopt.mhd.vmec_solver
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.mhd.vmec\_diagnostics module
 ------------------------------------
 
