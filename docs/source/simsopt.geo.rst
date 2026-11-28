@@ -124,6 +124,14 @@ simsopt.geo.permanent\_magnet\_grid module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.pestsurface module
+------------------------------
+
+.. automodule:: simsopt.geo.pestsurface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.plotting module
 ---------------------------
 
