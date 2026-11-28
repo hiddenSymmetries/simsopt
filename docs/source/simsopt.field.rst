@@ -116,6 +116,22 @@ simsopt.field.tracing module
    :undoc-members:
    :show-inheritance:
 
+simsopt.field.virtualcasingmagneticfield module
+-----------------------------------------------
+
+.. automodule:: simsopt.field.virtualcasingmagneticfield
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.field.vmecfield module
+------------------------------
+
+.. automodule:: simsopt.field.vmecfield
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.field.wireframefield module
 -----------------------------------
 
