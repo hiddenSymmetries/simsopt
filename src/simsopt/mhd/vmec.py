@@ -963,3 +963,86 @@ class Vmec(Optimizable):
     return_fn_map = {'aspect': aspect, 'volume': volume, 'iota_axis': iota_axis,
                      'iota_edge': iota_edge, 'mean_iota': mean_iota,
                      'mean_shear': mean_shear, 'vacuum_well': vacuum_well}
+
+    @classmethod
+    def vmec_from_surf(
+            cls,
+            nfp=None,
+            mpi: Optional[MpiPartition] = None,
+            surf=None,
+            M=12,
+            N=12,
+            ns=13,
+            ntheta=32,
+            nzeta=32,
+            ftol=1e-7,
+            phiedge=1,
+            delt=9e-1,
+            verbose=False,
+            niter=3000
+        ):
+        """
+        Create a fixed-boundary, vacuum (zero pressure and current) VMEC object for a given boundary.
+
+        Args:
+            nfp: Number of field periods; defaults to ``surf.nfp``, and must match it if given.
+            mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
+              the worker groups will be used for VMEC calculations. If ``None``,
+              each MPI process will run VMEC independently.
+            surf: Boundary surface; any surface with a ``to_RZFourier`` method,
+              e.g. a :obj:`~simsopt.geo.SurfaceRZFourier` or :obj:`~simsopt.geo.SurfaceBSpline`.
+            M, N: VMEC poloidal and toroidal resolution (``mpol``, ``ntor``).
+            ns: Number of radial surfaces.
+            ntheta, nzeta: Real-space poloidal and toroidal grid sizes.
+            ftol: Force residual tolerance.
+            phiedge: Toroidal flux enclosed by the boundary.
+            delt: Time step.
+            verbose: Whether to print to stdout when running VMEC.
+            niter: Maximum number of iterations.
+
+        Returns:
+            A :obj:`Vmec` object with ``surf`` as its boundary.
+        """
+        if surf is None:
+            raise ValueError("vmec_from_surf needs a boundary surface surf")
+        if nfp is None:
+            nfp = surf.nfp
+        elif nfp != surf.nfp:
+            raise ValueError(f"nfp = {nfp} does not match surf.nfp = {surf.nfp}")
+
+        vmec = cls(mpi=mpi, verbose=verbose)
+        # runtime params
+        vmec.indata.delt = delt
+        vmec.indata.tcon0 = 2
+        vmec.indata.ns_array = np.append(np.array([ns]), np.zeros(99,))
+        vmec.indata.niter_array = np.append(np.array([niter]), -1*np.ones(99,))
+        vmec.indata.ftol_array = np.append(np.array([ftol]), np.zeros(99,))
+        vmec.indata.precon_type = 'none'
+        vmec.indata.prec2d_threshold = 1e-19
+        # grid params
+        vmec.indata.lasym = 0
+        vmec.indata.nfp = nfp
+        vmec.indata.mpol = M
+        vmec.indata.ntor = N
+        vmec.indata.ntheta = ntheta
+        vmec.indata.nzeta = nzeta
+        vmec.indata.phiedge = phiedge
+        # free bdry params
+        vmec.indata.lfreeb = 0
+        vmec.indata.nvacskip = 6
+        # pressure params
+        vmec.indata.gamma = 0
+        vmec.indata.bloat = 1
+        vmec.indata.spres_ped = 1
+        vmec.indata.pres_scale = 1
+        vmec.indata.pmass_type = 'power_series'
+        vmec.indata.am = 0
+        # current/iota params
+        vmec.indata.curtor = 0
+        vmec.indata.ncurr = 1
+        vmec.indata.piota_type = 'power_series'
+        vmec.indata.pcurr_type = 'power_series'
+
+        vmec.boundary = surf
+        vmec.set_indata()
+        return vmec
